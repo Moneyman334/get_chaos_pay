@@ -52,6 +52,7 @@ export interface IStorage {
   getTransactionsByAddress(address: string): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(hash: string, updates: Partial<InsertTransaction>): Promise<Transaction | undefined>;
+  upsertTransactions(transactions: InsertTransaction[]): Promise<Transaction[]>;
   
   // Network methods
   getAllNetworks(): Promise<NetworkInfo[]>;
@@ -198,6 +199,53 @@ export class MemStorage implements IStorage {
     };
     this.transactions.set(transaction.id, updatedTransaction);
     return updatedTransaction;
+  }
+
+  async upsertTransactions(insertTransactions: InsertTransaction[]): Promise<Transaction[]> {
+    const results: Transaction[] = [];
+    
+    for (const insertTransaction of insertTransactions) {
+      // Check if transaction already exists (by hash and network)
+      const existing = Array.from(this.transactions.values()).find(
+        tx => tx.hash === insertTransaction.hash && tx.network === (insertTransaction.network || "mainnet")
+      );
+
+      if (existing) {
+        // Update existing transaction
+        const updatedTransaction: Transaction = { 
+          ...existing,
+          ...insertTransaction,
+          fromAddress: normalizeAddress(insertTransaction.fromAddress),
+          toAddress: normalizeAddress(insertTransaction.toAddress),
+          id: existing.id, // Keep existing ID
+          timestamp: existing.timestamp // Keep original timestamp
+        };
+        this.transactions.set(existing.id, updatedTransaction);
+        results.push(updatedTransaction);
+      } else {
+        // Create new transaction
+        const id = randomUUID();
+        const transaction: Transaction = { 
+          hash: insertTransaction.hash,
+          fromAddress: normalizeAddress(insertTransaction.fromAddress),
+          toAddress: normalizeAddress(insertTransaction.toAddress),
+          amount: insertTransaction.amount,
+          gasPrice: insertTransaction.gasPrice || null,
+          gasUsed: insertTransaction.gasUsed || null,
+          fee: insertTransaction.fee || null,
+          status: insertTransaction.status || "pending",
+          network: insertTransaction.network || "mainnet",
+          blockNumber: insertTransaction.blockNumber || null,
+          metadata: insertTransaction.metadata || null,
+          id,
+          timestamp: new Date()
+        };
+        this.transactions.set(id, transaction);
+        results.push(transaction);
+      }
+    }
+    
+    return results;
   }
 
   // Network methods
@@ -523,6 +571,60 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(transactions.hash, hash))
       .returning();
     return result[0];
+  }
+
+  async upsertTransactions(insertTransactions: InsertTransaction[]): Promise<Transaction[]> {
+    const results: Transaction[] = [];
+    
+    for (const insertTransaction of insertTransactions) {
+      const transactionData = {
+        ...insertTransaction,
+        fromAddress: normalizeAddress(insertTransaction.fromAddress),
+        toAddress: normalizeAddress(insertTransaction.toAddress),
+        status: insertTransaction.status || "pending",
+        network: insertTransaction.network || "mainnet"
+      };
+
+      try {
+        // Try to insert, if conflict then update
+        const result = await db.insert(transactions)
+          .values(transactionData)
+          .onConflictDoUpdate({
+            target: transactions.hash,
+            set: {
+              fromAddress: sql`excluded.${transactions.fromAddress}`,
+              toAddress: sql`excluded.${transactions.toAddress}`,
+              amount: sql`excluded.${transactions.amount}`,
+              gasPrice: sql`excluded.${transactions.gasPrice}`,
+              gasUsed: sql`excluded.${transactions.gasUsed}`,
+              fee: sql`excluded.${transactions.fee}`,
+              status: sql`excluded.${transactions.status}`,
+              blockNumber: sql`excluded.${transactions.blockNumber}`,
+              metadata: sql`excluded.${transactions.metadata}`,
+              updatedAt: sql`now()`
+            }
+          })
+          .returning();
+        
+        results.push(result[0]);
+      } catch (error) {
+        // If upsert fails, try a select to see if it exists
+        console.warn(`Failed to upsert transaction ${insertTransaction.hash}:`, error);
+        try {
+          const existing = await db.select().from(transactions)
+            .where(eq(transactions.hash, insertTransaction.hash))
+            .limit(1);
+          
+          if (existing[0]) {
+            results.push(existing[0]);
+          }
+        } catch (selectError) {
+          console.error(`Failed to select existing transaction ${insertTransaction.hash}:`, selectError);
+        }
+      }
+    }
+    
+    return results;
   }
 
   // Network methods

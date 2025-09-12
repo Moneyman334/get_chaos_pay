@@ -14,18 +14,217 @@ const transactionHashSchema = z.string()
   .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid transaction hash format");
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get transactions for a wallet address
+  // API health check endpoint
+  app.get("/api", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      message: "Transaction History API is running",
+      timestamp: new Date().toISOString(),
+      version: "1.0.0"
+    });
+  });
+
+  // API health check with more details
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "healthy", 
+      services: ["transactions", "wallets", "tokens", "networks"],
+      database: "connected",
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Get transactions for a wallet address (enhanced with pagination and filtering)
   app.get("/api/transactions/:address", async (req, res) => {
     try {
       const address = ethereumAddressSchema.parse(req.params.address);
+      
+      // Parse query parameters for pagination and filtering
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      const network = req.query.network as string;
+      const status = req.query.status as string;
+      const type = req.query.type as string;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      const search = req.query.search as string;
+      
       const transactions = await storage.getTransactionsByAddress(address);
-      res.json(transactions);
+      
+      // Apply filters
+      let filteredTransactions = transactions;
+      
+      if (network) {
+        filteredTransactions = filteredTransactions.filter(tx => 
+          tx.network?.toLowerCase() === network.toLowerCase()
+        );
+      }
+      
+      if (status) {
+        filteredTransactions = filteredTransactions.filter(tx => 
+          tx.status === status
+        );
+      }
+      
+      if (type) {
+        const isOutgoing = tx => tx.fromAddress.toLowerCase() === address.toLowerCase();
+        filteredTransactions = filteredTransactions.filter(tx => {
+          switch (type) {
+            case 'sent': return isOutgoing(tx);
+            case 'received': return !isOutgoing(tx);
+            case 'token_transfer': return tx.metadata?.tokenSymbol;
+            case 'contract_interaction': return tx.metadata?.contractAddress;
+            default: return true;
+          }
+        });
+      }
+      
+      if (search) {
+        const searchTerm = search.toLowerCase();
+        filteredTransactions = filteredTransactions.filter(tx =>
+          tx.hash.toLowerCase().includes(searchTerm) ||
+          tx.fromAddress.toLowerCase().includes(searchTerm) ||
+          tx.toAddress.toLowerCase().includes(searchTerm) ||
+          tx.metadata?.tokenSymbol?.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      if (startDate) {
+        const start = new Date(startDate);
+        filteredTransactions = filteredTransactions.filter(tx => 
+          new Date(tx.timestamp!) >= start
+        );
+      }
+      
+      if (endDate) {
+        const end = new Date(endDate);
+        filteredTransactions = filteredTransactions.filter(tx => 
+          new Date(tx.timestamp!) <= end
+        );
+      }
+      
+      // Sort by timestamp (newest first)
+      filteredTransactions.sort((a, b) => 
+        new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime()
+      );
+      
+      // Apply pagination
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+      
+      // Response with pagination metadata
+      res.json({
+        transactions: paginatedTransactions,
+        pagination: {
+          page,
+          limit,
+          total: filteredTransactions.length,
+          hasMore: endIndex < filteredTransactions.length,
+          totalPages: Math.ceil(filteredTransactions.length / limit)
+        }
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Invalid address format" });
       }
       console.error("Failed to get transactions:", error);
       res.status(500).json({ error: "Failed to get transactions" });
+    }
+  });
+
+  // Get transaction statistics for a wallet address
+  app.get("/api/transactions/:address/stats", async (req, res) => {
+    try {
+      const address = ethereumAddressSchema.parse(req.params.address);
+      const transactions = await storage.getTransactionsByAddress(address);
+      
+      const stats = {
+        total: transactions.length,
+        sent: transactions.filter(tx => tx.fromAddress.toLowerCase() === address.toLowerCase()).length,
+        received: transactions.filter(tx => tx.toAddress.toLowerCase() === address.toLowerCase()).length,
+        pending: transactions.filter(tx => tx.status === 'pending').length,
+        confirmed: transactions.filter(tx => tx.status === 'confirmed').length,
+        failed: transactions.filter(tx => tx.status === 'failed').length,
+        networks: [...new Set(transactions.map(tx => tx.network))],
+        totalVolume: transactions.reduce((sum, tx) => {
+          const amount = parseFloat(tx.amount || '0');
+          return sum + (isNaN(amount) ? 0 : amount);
+        }, 0)
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address format" });
+      }
+      console.error("Failed to get transaction stats:", error);
+      res.status(500).json({ error: "Failed to get transaction stats" });
+    }
+  });
+
+  // Real-time transaction monitoring endpoint
+  app.get("/api/transactions/:address/pending", async (req, res) => {
+    try {
+      const address = ethereumAddressSchema.parse(req.params.address);
+      const transactions = await storage.getTransactionsByAddress(address);
+      const pendingTransactions = transactions.filter(tx => tx.status === 'pending');
+      
+      res.json(pendingTransactions);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address format" });
+      }
+      console.error("Failed to get pending transactions:", error);
+      res.status(500).json({ error: "Failed to get pending transactions" });
+    }
+  });
+
+  // Export transactions endpoint
+  app.get("/api/transactions/:address/export", async (req, res) => {
+    try {
+      const address = ethereumAddressSchema.parse(req.params.address);
+      const format = (req.query.format as string) || 'json';
+      
+      const transactions = await storage.getTransactionsByAddress(address);
+      
+      if (format === 'csv') {
+        const csvHeaders = [
+          'Hash', 'Date', 'From', 'To', 'Amount', 'Status', 'Network', 'Gas Price', 'Gas Used', 'Fee', 'Block Number'
+        ];
+        
+        const csvRows = transactions.map(tx => [
+          tx.hash,
+          tx.timestamp ? new Date(tx.timestamp).toISOString() : '',
+          tx.fromAddress,
+          tx.toAddress,
+          tx.amount || '0',
+          tx.status,
+          tx.network || '',
+          tx.gasPrice || '',
+          tx.gasUsed || '',
+          tx.fee || '',
+          tx.blockNumber || ''
+        ]);
+        
+        const csvContent = [csvHeaders, ...csvRows]
+          .map(row => row.map(cell => `"${cell}"`).join(','))
+          .join('\n');
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="transactions-${address}.csv"`);
+        res.send(csvContent);
+      } else {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="transactions-${address}.json"`);
+        res.json(transactions);
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address format" });
+      }
+      console.error("Failed to export transactions:", error);
+      res.status(500).json({ error: "Failed to export transactions" });
     }
   });
 
@@ -52,6 +251,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to create transaction:", error);
       res.status(400).json({ error: "Invalid transaction data" });
+    }
+  });
+
+  // Bulk store transactions (upsert)
+  app.post("/api/transactions/bulk", async (req, res) => {
+    try {
+      const bulkTransactionSchema = z.array(z.object({
+        hash: transactionHashSchema,
+        fromAddress: ethereumAddressSchema,
+        toAddress: ethereumAddressSchema,
+        amount: z.string().optional(), // Allow formatted amounts from client
+        gasPrice: z.string().optional(),
+        gasUsed: z.string().optional(),
+        fee: z.string().optional(),
+        status: z.enum(["pending", "confirmed", "failed"]).default("confirmed"),
+        network: z.string().default("mainnet"),
+        blockNumber: z.string().optional(),
+        metadata: z.any().optional()
+      })).max(100, "Maximum 100 transactions per request");
+
+      const validatedData = bulkTransactionSchema.parse(req.body);
+      
+      // Validate and normalize the transactions
+      const processedTransactions = validatedData.map(tx => ({
+        ...tx,
+        amount: tx.amount || "0",
+        status: tx.status || "confirmed"
+      }));
+
+      const storedTransactions = await storage.upsertTransactions(processedTransactions);
+      
+      res.status(201).json({
+        success: true,
+        stored: storedTransactions.length,
+        transactions: storedTransactions
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid transaction data", 
+          details: error.errors.slice(0, 5) // Limit error details to prevent large responses
+        });
+      }
+      console.error("Failed to bulk store transactions:", error);
+      res.status(500).json({ error: "Failed to store transactions" });
     }
   });
 
