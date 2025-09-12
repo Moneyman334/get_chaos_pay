@@ -8,9 +8,19 @@ import {
   isChainSupported,
   getAllNetworks,
   weiToGwei,
-  WEI_PER_ETH 
+  WEI_PER_ETH,
+  transferToken,
+  approveToken,
+  getTokenAllowance 
 } from "@/lib/web3";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  tokenDetectionService, 
+  DetectedToken, 
+  TokenDetectionOptions 
+} from "@/lib/tokenDetection";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Web3State {
   isConnected: boolean;
@@ -20,6 +30,9 @@ interface Web3State {
   chainId?: string;
   blockNumber?: string;
   gasPrice?: string;
+  tokens?: DetectedToken[];
+  isLoadingTokens?: boolean;
+  tokenError?: string;
 }
 
 export function useWeb3() {
@@ -378,6 +391,279 @@ export function useWeb3() {
     return state.chainId ? isChainSupported(state.chainId) : false;
   }, [state.chainId]);
 
+  // ========================
+  // TOKEN MANAGEMENT
+  // ========================
+
+  const queryClient = useQueryClient();
+
+  // Fetch tokens for current wallet and chain
+  const {
+    data: detectedTokens,
+    isLoading: isLoadingTokens,
+    error: tokenError,
+    refetch: refetchTokens
+  } = useQuery({
+    queryKey: ['tokens', state.account, state.chainId],
+    queryFn: async () => {
+      if (!state.account || !state.chainId) return [];
+      return tokenDetectionService.detectTokensForWallet(
+        state.account,
+        state.chainId,
+        { includeZeroBalances: true }
+      );
+    },
+    enabled: !!state.account && !!state.chainId,
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 60000, // Refetch every minute
+  });
+
+  // Detect tokens function
+  const detectTokens = useCallback(async (options?: TokenDetectionOptions) => {
+    if (!state.account || !state.chainId) return [];
+    
+    updateState({ isLoadingTokens: true, tokenError: undefined });
+    
+    try {
+      const tokens = await tokenDetectionService.detectTokensForWallet(
+        state.account,
+        state.chainId,
+        options
+      );
+      
+      updateState({ tokens, isLoadingTokens: false });
+      
+      // Sync with backend
+      for (const token of tokens) {
+        try {
+          await apiRequest('POST', '/api/tokens', {
+            contractAddress: token.address,
+            chainId: token.chainId,
+            name: token.name,
+            symbol: token.symbol,
+            decimals: token.decimals.toString(),
+            logoUrl: token.logoUrl || null,
+            isVerified: token.isPopular ? "true" : "false"
+          });
+        } catch (apiError) {
+          // Token might already exist, continue
+          console.debug('Token already exists in backend:', apiError);
+        }
+      }
+      
+      return tokens;
+    } catch (error) {
+      console.error('Failed to detect tokens:', error);
+      updateState({ 
+        tokenError: error instanceof Error ? error.message : 'Failed to detect tokens',
+        isLoadingTokens: false 
+      });
+      return [];
+    }
+  }, [state.account, state.chainId]);
+
+  // Add custom token
+  const addCustomToken = useCallback(async (contractAddress: string) => {
+    if (!state.account || !state.chainId) {
+      throw new Error('Wallet not connected');
+    }
+
+    try {
+      const customToken = await tokenDetectionService.addCustomToken(
+        contractAddress,
+        state.account,
+        state.chainId
+      );
+
+      if (!customToken) {
+        throw new Error('Failed to add custom token');
+      }
+
+      // Add to backend
+      await apiRequest('POST', '/api/tokens', {
+        contractAddress: customToken.address,
+        chainId: customToken.chainId,
+        name: customToken.name,
+        symbol: customToken.symbol,
+        decimals: customToken.decimals.toString(),
+        logoUrl: customToken.logoUrl || null,
+        isVerified: "false"
+      });
+
+      // Add to user tokens
+      await apiRequest('POST', '/api/user-tokens', {
+        userId: state.account, // Using account as user ID for now
+        walletAddress: state.account,
+        tokenId: customToken.address,
+        isHidden: "false",
+        sortOrder: "0"
+      });
+
+      // Refresh tokens
+      await refetchTokens();
+      
+      toast({
+        title: "Token added",
+        description: `Successfully added ${customToken.symbol} (${customToken.name})`,
+      });
+
+      return customToken;
+    } catch (error: any) {
+      console.error('Failed to add custom token:', error);
+      toast({
+        title: "Failed to add token",
+        description: error.message || "Failed to add custom token",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  }, [state.account, state.chainId, toast, refetchTokens]);
+
+  // Transfer token
+  const transferTokenMutation = useMutation({
+    mutationFn: async ({ 
+      tokenAddress, 
+      toAddress, 
+      amount, 
+      decimals 
+    }: { 
+      tokenAddress: string;
+      toAddress: string;
+      amount: string;
+      decimals: number;
+    }) => {
+      if (!state.account) {
+        throw new Error('Wallet not connected');
+      }
+
+      return transferToken(tokenAddress, state.account, toAddress, amount, decimals);
+    },
+    onSuccess: (txHash, variables) => {
+      toast({
+        title: "Transfer initiated",
+        description: `Token transfer transaction submitted: ${txHash.slice(0, 10)}...`,
+      });
+
+      // Refresh balances after a delay
+      setTimeout(() => {
+        refetchTokens();
+        checkConnection();
+      }, 3000);
+
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['tokens'] });
+    },
+    onError: (error: any) => {
+      console.error('Token transfer failed:', error);
+      toast({
+        title: "Transfer failed",
+        description: error.message || "Failed to transfer token",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Approve token spending
+  const approveTokenMutation = useMutation({
+    mutationFn: async ({ 
+      tokenAddress, 
+      spenderAddress, 
+      amount, 
+      decimals 
+    }: { 
+      tokenAddress: string;
+      spenderAddress: string;
+      amount: string;
+      decimals: number;
+    }) => {
+      if (!state.account) {
+        throw new Error('Wallet not connected');
+      }
+
+      return approveToken(tokenAddress, state.account, spenderAddress, amount, decimals);
+    },
+    onSuccess: (txHash) => {
+      toast({
+        title: "Approval successful",
+        description: `Token approval transaction submitted: ${txHash.slice(0, 10)}...`,
+      });
+    },
+    onError: (error: any) => {
+      console.error('Token approval failed:', error);
+      toast({
+        title: "Approval failed",
+        description: error.message || "Failed to approve token",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Get token allowance
+  const getTokenAllowanceCallback = useCallback(async (
+    tokenAddress: string,
+    spenderAddress: string
+  ) => {
+    if (!state.account) {
+      throw new Error('Wallet not connected');
+    }
+
+    return getTokenAllowance(tokenAddress, state.account, spenderAddress);
+  }, [state.account]);
+
+  // Refresh token balances
+  const refreshTokenBalances = useCallback(async () => {
+    if (!state.account || !detectedTokens?.length) return;
+
+    try {
+      const refreshedTokens = await tokenDetectionService.refreshTokenBalances(
+        detectedTokens,
+        state.account
+      );
+      
+      updateState({ tokens: refreshedTokens });
+
+      // Update backend balances
+      for (const token of refreshedTokens) {
+        try {
+          await apiRequest('PUT', '/api/tokens/balances', {
+            walletAddress: state.account,
+            tokenId: token.address,
+            balance: token.balanceInWei
+          });
+        } catch (error) {
+          console.debug('Failed to update backend balance:', error);
+        }
+      }
+      
+      return refreshedTokens;
+    } catch (error) {
+      console.error('Failed to refresh token balances:', error);
+      return detectedTokens;
+    }
+  }, [state.account, detectedTokens]);
+
+  // Get token by address
+  const getTokenByAddress = useCallback((address: string) => {
+    return detectedTokens?.find(token => 
+      token.address.toLowerCase() === address.toLowerCase()
+    );
+  }, [detectedTokens]);
+
+  // Search tokens
+  const searchTokens = useCallback((query: string) => {
+    if (!detectedTokens) return [];
+    return tokenDetectionService.searchTokens(detectedTokens, query);
+  }, [detectedTokens]);
+
+  // Update token state when detected tokens change
+  useEffect(() => {
+    updateState({ 
+      tokens: detectedTokens,
+      isLoadingTokens,
+      tokenError: tokenError?.message 
+    });
+  }, [detectedTokens, isLoadingTokens, tokenError]);
+
   return useMemo(() => ({
     ...state,
     connectWallet,
@@ -389,7 +675,19 @@ export function useWeb3() {
     getAvailableNetworks,
     getCurrentNetworkInfo,
     getTokenExplorerUrl,
-    isCurrentNetworkSupported
+    isCurrentNetworkSupported,
+    // Token functions
+    detectTokens,
+    addCustomToken,
+    transferToken: transferTokenMutation.mutate,
+    approveToken: approveTokenMutation.mutate,
+    getTokenAllowance: getTokenAllowanceCallback,
+    refreshTokenBalances,
+    getTokenByAddress,
+    searchTokens,
+    isTransferring: transferTokenMutation.isPending,
+    isApproving: approveTokenMutation.isPending,
+    refetchTokens
   }), [
     state,
     connectWallet,
@@ -401,6 +699,17 @@ export function useWeb3() {
     getAvailableNetworks,
     getCurrentNetworkInfo,
     getTokenExplorerUrl,
-    isCurrentNetworkSupported
+    isCurrentNetworkSupported,
+    detectTokens,
+    addCustomToken,
+    transferTokenMutation.mutate,
+    transferTokenMutation.isPending,
+    approveTokenMutation.mutate,
+    approveTokenMutation.isPending,
+    getTokenAllowanceCallback,
+    refreshTokenBalances,
+    getTokenByAddress,
+    searchTokens,
+    refetchTokens
   ]);
 }

@@ -23,7 +23,7 @@ function Router() {
   );
 }
 
-function App() {
+function AppContent() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const { connectWallet, disconnectWallet } = useWeb3();
 
@@ -45,28 +45,34 @@ function App() {
   };
 
   return (
+    <TooltipProvider>
+      <div className="bg-background text-foreground min-h-screen">
+        <Toaster />
+        <Navigation 
+          onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+        />
+        <Router />
+        
+        {/* Global Connection Modal */}
+        <ConnectionModal
+          isOpen={showConnectionModal}
+          onClose={() => setShowConnectionModal(false)}
+          onConnectMetaMask={handleConnectMetaMask}
+          onConnectWalletConnect={() => {
+            console.log("WalletConnect not implemented yet");
+            // TODO: Implement WalletConnect
+          }}
+        />
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function App() {
+  return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div className="bg-background text-foreground min-h-screen">
-          <Toaster />
-          <Navigation 
-            onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
-          />
-          <Router />
-          
-          {/* Global Connection Modal */}
-          <ConnectionModal
-            isOpen={showConnectionModal}
-            onClose={() => setShowConnectionModal(false)}
-            onConnectMetaMask={handleConnectMetaMask}
-            onConnectWalletConnect={() => {
-              console.log("WalletConnect not implemented yet");
-              // TODO: Implement WalletConnect
-            }}
-          />
-        </div>
-      </TooltipProvider>
+      <AppContent />
     </QueryClientProvider>
   );
 }

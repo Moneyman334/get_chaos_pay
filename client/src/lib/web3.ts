@@ -292,3 +292,432 @@ export function getNetworkGroup(network: any): string {
   if (network.name.includes('Optimism')) return 'Optimism';
   return 'Other';
 }
+
+// ERC-20 ABI for token interactions
+export const ERC20_ABI = [
+  // Read functions
+  {
+    "constant": true,
+    "inputs": [{"name": "owner", "type": "address"}],
+    "name": "balanceOf",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "name",
+    "outputs": [{"name": "", "type": "string"}],
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [{"name": "", "type": "string"}],
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{"name": "", "type": "uint8"}],
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "totalSupply",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
+    "name": "allowance",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "type": "function"
+  },
+  // Write functions
+  {
+    "constant": false,
+    "inputs": [{"name": "to", "type": "address"}, {"name": "value", "type": "uint256"}],
+    "name": "transfer",
+    "outputs": [{"name": "", "type": "bool"}],
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [{"name": "spender", "type": "address"}, {"name": "value", "type": "uint256"}],
+    "name": "approve",
+    "outputs": [{"name": "", "type": "bool"}],
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [{"name": "from", "type": "address"}, {"name": "to", "type": "address"}, {"name": "value", "type": "uint256"}],
+    "name": "transferFrom",
+    "outputs": [{"name": "", "type": "bool"}],
+    "type": "function"
+  }
+];
+
+// Token metadata interface
+export interface TokenMetadata {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  totalSupply?: string;
+  logoUrl?: string;
+}
+
+// ERC-20 Token utility functions
+export async function getTokenMetadata(contractAddress: string): Promise<TokenMetadata | null> {
+  try {
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
+
+    // Validate contract address
+    if (!contractAddress || !contractAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      throw new Error('Invalid contract address format');
+    }
+
+    const provider = window.ethereum;
+    
+    // Get token name
+    const nameResult = await provider.request({
+      method: 'eth_call',
+      params: [{
+        to: contractAddress,
+        data: '0x06fdde03' // name() function selector
+      }, 'latest']
+    });
+
+    // Get token symbol
+    const symbolResult = await provider.request({
+      method: 'eth_call',
+      params: [{
+        to: contractAddress,
+        data: '0x95d89b41' // symbol() function selector
+      }, 'latest']
+    });
+
+    // Get token decimals
+    const decimalsResult = await provider.request({
+      method: 'eth_call',
+      params: [{
+        to: contractAddress,
+        data: '0x313ce567' // decimals() function selector
+      }, 'latest']
+    });
+
+    // Get total supply
+    const totalSupplyResult = await provider.request({
+      method: 'eth_call',
+      params: [{
+        to: contractAddress,
+        data: '0x18160ddd' // totalSupply() function selector
+      }, 'latest']
+    });
+
+    // Parse results
+    const name = parseStringFromHex(nameResult);
+    const symbol = parseStringFromHex(symbolResult);
+    const decimals = parseInt(decimalsResult, 16);
+    const totalSupply = BigInt(totalSupplyResult || '0x0').toString();
+
+    if (!name || !symbol) {
+      throw new Error('Unable to fetch token metadata');
+    }
+
+    return {
+      address: contractAddress.toLowerCase(),
+      name,
+      symbol,
+      decimals: isNaN(decimals) ? 18 : decimals,
+      totalSupply
+    };
+  } catch (error) {
+    console.error('Failed to get token metadata:', error);
+    return null;
+  }
+}
+
+export async function getTokenBalance(contractAddress: string, walletAddress: string): Promise<string> {
+  try {
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
+
+    // Validate addresses
+    if (!contractAddress.match(/^0x[a-fA-F0-9]{40}$/) || !walletAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      throw new Error('Invalid address format');
+    }
+
+    const provider = window.ethereum;
+    
+    // Encode balanceOf call
+    const paddedAddress = walletAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+    const data = '0x70a08231' + paddedAddress; // balanceOf(address) function selector + padded address
+
+    const result = await provider.request({
+      method: 'eth_call',
+      params: [{
+        to: contractAddress,
+        data: data
+      }, 'latest']
+    });
+
+    return BigInt(result || '0x0').toString();
+  } catch (error) {
+    console.error('Failed to get token balance:', error);
+    return '0';
+  }
+}
+
+export async function transferToken(
+  contractAddress: string, 
+  toAddress: string, 
+  amount: string, 
+  decimals: number,
+  fromAddress: string
+): Promise<string> {
+  try {
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
+
+    // Validate addresses
+    if (!contractAddress.match(/^0x[a-fA-F0-9]{40}$/) || !toAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      throw new Error('Invalid address format');
+    }
+
+    // Convert amount to wei (token smallest unit)
+    const amountInWei = parseTokenAmount(amount, decimals);
+    
+    // Encode transfer call
+    const paddedToAddress = toAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+    const paddedAmount = amountInWei.toString(16).padStart(64, '0');
+    const data = '0xa9059cbb' + paddedToAddress + paddedAmount; // transfer(address,uint256) function selector
+
+    // Estimate gas first
+    const gasEstimate = await window.ethereum.request({
+      method: 'eth_estimateGas',
+      params: [{
+        from: fromAddress,
+        to: contractAddress,
+        data: data
+      }]
+    });
+
+    // Send transaction
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: fromAddress,
+        to: contractAddress,
+        data: data,
+        gas: '0x' + (BigInt(gasEstimate) + BigInt(10000)).toString(16) // Add buffer to gas estimate
+      }]
+    });
+
+    return txHash;
+  } catch (error) {
+    console.error('Failed to transfer token:', error);
+    throw error;
+  }
+}
+
+export async function approveToken(
+  contractAddress: string, 
+  spenderAddress: string, 
+  amount: string, 
+  decimals: number,
+  fromAddress: string
+): Promise<string> {
+  try {
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
+
+    // Validate addresses
+    if (!contractAddress.match(/^0x[a-fA-F0-9]{40}$/) || !spenderAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      throw new Error('Invalid address format');
+    }
+
+    // Convert amount to wei (token smallest unit)
+    const amountInWei = parseTokenAmount(amount, decimals);
+    
+    // Encode approve call
+    const paddedSpenderAddress = spenderAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+    const paddedAmount = amountInWei.toString(16).padStart(64, '0');
+    const data = '0x095ea7b3' + paddedSpenderAddress + paddedAmount; // approve(address,uint256) function selector
+
+    // Estimate gas first
+    const gasEstimate = await window.ethereum.request({
+      method: 'eth_estimateGas',
+      params: [{
+        from: fromAddress,
+        to: contractAddress,
+        data: data
+      }]
+    });
+
+    // Send transaction
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: fromAddress,
+        to: contractAddress,
+        data: data,
+        gas: '0x' + (BigInt(gasEstimate) + BigInt(10000)).toString(16) // Add buffer to gas estimate
+      }]
+    });
+
+    return txHash;
+  } catch (error) {
+    console.error('Failed to approve token:', error);
+    throw error;
+  }
+}
+
+export async function getTokenAllowance(
+  contractAddress: string, 
+  ownerAddress: string, 
+  spenderAddress: string
+): Promise<string> {
+  try {
+    if (!window.ethereum) {
+      throw new Error('MetaMask is not installed');
+    }
+
+    // Validate addresses
+    if (!contractAddress.match(/^0x[a-fA-F0-9]{40}$/) || 
+        !ownerAddress.match(/^0x[a-fA-F0-9]{40}$/) || 
+        !spenderAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      throw new Error('Invalid address format');
+    }
+
+    const provider = window.ethereum;
+    
+    // Encode allowance call
+    const paddedOwnerAddress = ownerAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+    const paddedSpenderAddress = spenderAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+    const data = '0xdd62ed3e' + paddedOwnerAddress + paddedSpenderAddress; // allowance(address,address) function selector
+
+    const result = await provider.request({
+      method: 'eth_call',
+      params: [{
+        to: contractAddress,
+        data: data
+      }, 'latest']
+    });
+
+    return BigInt(result || '0x0').toString();
+  } catch (error) {
+    console.error('Failed to get token allowance:', error);
+    return '0';
+  }
+}
+
+// Utility functions for token operations
+export function parseTokenAmount(amount: string, decimals: number): bigint {
+  try {
+    const [intPart, fracPart = '0'] = amount.split('.');
+    const paddedFrac = fracPart.padEnd(decimals, '0').slice(0, decimals);
+    const divisor = BigInt(10) ** BigInt(decimals);
+    const integerPart = BigInt(intPart) * divisor;
+    const fractionalPart = BigInt(paddedFrac);
+    return integerPart + fractionalPart;
+  } catch {
+    return BigInt(0);
+  }
+}
+
+export function formatTokenBalance(amount: string, decimals: number, displayDecimals: number = 4): string {
+  try {
+    const amountBigInt = BigInt(amount);
+    const divisor = BigInt(10) ** BigInt(decimals);
+    const intPart = amountBigInt / divisor;
+    const remainder = amountBigInt % divisor;
+    
+    if (remainder === BigInt(0)) {
+      return intPart.toString();
+    }
+    
+    const fractional = remainder.toString().padStart(decimals, '0');
+    const trimmed = fractional.slice(0, displayDecimals).replace(/0+$/, '') || '0';
+    return `${intPart.toString()}.${trimmed}`;
+  } catch {
+    return '0';
+  }
+}
+
+export function parseStringFromHex(hexData: string): string {
+  try {
+    if (!hexData || hexData === '0x') return '';
+    
+    // Remove 0x prefix
+    const hex = hexData.replace('0x', '');
+    
+    // For dynamic strings, skip the first 64 characters (offset) and next 64 characters (length)
+    // Then convert the actual string data
+    if (hex.length > 128) {
+      const stringData = hex.slice(128);
+      let result = '';
+      for (let i = 0; i < stringData.length; i += 2) {
+        const byte = parseInt(stringData.substr(i, 2), 16);
+        if (byte === 0) break; // Stop at null terminator
+        result += String.fromCharCode(byte);
+      }
+      return result;
+    }
+    
+    // For simple strings, convert directly
+    let result = '';
+    for (let i = 0; i < hex.length; i += 2) {
+      const byte = parseInt(hex.substr(i, 2), 16);
+      if (byte === 0) break;
+      result += String.fromCharCode(byte);
+    }
+    return result;
+  } catch {
+    return '';
+  }
+}
+
+// Popular token addresses by chain (for quick access)
+export const POPULAR_TOKENS: Record<string, Array<{address: string, symbol: string, name: string}>> = {
+  '0x1': [ // Ethereum Mainnet
+    { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', symbol: 'USDT', name: 'Tether USD' },
+    { address: '0xA0b86a33E6441e3B3A0d12A8b98E6f50a7c6C555', symbol: 'USDC', name: 'USD Coin' },
+    { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', symbol: 'DAI', name: 'Dai Stablecoin' },
+    { address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', symbol: 'WETH', name: 'Wrapped Ether' }
+  ],
+  '0x89': [ // Polygon Mainnet
+    { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', symbol: 'USDT', name: 'Tether USD' },
+    { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', symbol: 'USDC', name: 'USD Coin' },
+    { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', symbol: 'DAI', name: 'Dai Stablecoin' },
+    { address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', symbol: 'WETH', name: 'Wrapped Ether' }
+  ],
+  '0x38': [ // BSC Mainnet
+    { address: '0x55d398326f99059fF775485246999027B3197955', symbol: 'USDT', name: 'Tether USD' },
+    { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', symbol: 'USDC', name: 'USD Coin' },
+    { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', symbol: 'DAI', name: 'Dai Stablecoin' },
+    { address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', symbol: 'WETH', name: 'Wrapped Ether' }
+  ],
+  '0xa4b1': [ // Arbitrum One
+    { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', symbol: 'USDT', name: 'Tether USD' },
+    { address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', symbol: 'USDC', name: 'USD Coin' },
+    { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', symbol: 'DAI', name: 'Dai Stablecoin' },
+    { address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', symbol: 'WETH', name: 'Wrapped Ether' }
+  ],
+  '0xa': [ // Optimism Mainnet
+    { address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58', symbol: 'USDT', name: 'Tether USD' },
+    { address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607', symbol: 'USDC', name: 'USD Coin' },
+    { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', symbol: 'DAI', name: 'Dai Stablecoin' },
+    { address: '0x4200000000000000000000000000000000000006', symbol: 'WETH', name: 'Wrapped Ether' }
+  ]
+};
