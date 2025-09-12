@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(120, 15%, 4%);
+  --foreground: hsl(48, 20%, 92%);
+  --card: hsl(120, 15%, 6%);
+  --card-foreground: hsl(48, 20%, 92%);
+  --popover: hsl(120, 15%, 6%);
+  --popover-foreground: hsl(48, 20%, 92%);
+  --primary: hsl(120, 100%, 25%);
+  --primary-foreground: hsl(48, 95%, 90%);
+  --secondary: hsl(120, 15%, 8%);
+  --secondary-foreground: hsl(48, 20%, 88%);
+  --muted: hsl(120, 15%, 10%);
+  --muted-foreground: hsl(48, 10%, 65%);
+  --accent: hsl(48, 95%, 65%);
+  --accent-foreground: hsl(120, 15%, 4%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(120, 15%, 15%);
+  --input: hsl(120, 15%, 12%);
+  --ring: hsl(48, 95%, 65%);
+  --chart-1: hsl(120, 100%, 25%);
+  --chart-2: hsl(48, 95%, 65%);
+  --chart-3: hsl(0, 84%, 60%);
+  --chart-4: hsl(142, 76%, 36%);
+  --chart-5: hsl(280, 70%, 60%);
+  --sidebar: hsl(120, 15%, 6%);
+  --sidebar-foreground: hsl(48, 20%, 92%);
+  --sidebar-primary: hsl(120, 100%, 25%);
+  --sidebar-primary-foreground: hsl(48, 95%, 90%);
+  --sidebar-accent: hsl(120, 15%, 10%);
+  --sidebar-accent-foreground: hsl(48, 95%, 65%);
+  --sidebar-border: hsl(120, 15%, 15%);
+  --sidebar-ring: hsl(48, 95%, 65%);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'JetBrains Mono', Menlo, monospace;
+  --radius: 0.75rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00), 0px 1px 2px -1px hsl(262, 83%, 65%, 0.00);
+  --shadow: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00), 0px 1px 2px -1px hsl(262, 83%, 65%, 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00), 0px 2px 4px -1px hsl(262, 83%, 65%, 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00), 0px 4px 6px -1px hsl(262, 83%, 65%, 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00), 0px 8px 10px -1px hsl(262, 83%, 65%, 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(262, 83%, 65%, 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: hsl(120, 15%, 4%);
+  --foreground: hsl(48, 20%, 92%);
+  --card: hsl(120, 15%, 6%);
+  --card-foreground: hsl(48, 20%, 92%);
+  --popover: hsl(120, 15%, 6%);
+  --popover-foreground: hsl(48, 20%, 92%);
+  --primary: hsl(120, 100%, 25%);
+  --primary-foreground: hsl(48, 95%, 90%);
+  --secondary: hsl(120, 15%, 8%);
+  --secondary-foreground: hsl(48, 20%, 88%);
+  --muted: hsl(120, 15%, 10%);
+  --muted-foreground: hsl(48, 10%, 65%);
+  --accent: hsl(48, 95%, 65%);
+  --accent-foreground: hsl(120, 15%, 4%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(120, 15%, 15%);
+  --input: hsl(120, 15%, 12%);
+  --ring: hsl(48, 95%, 65%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.gradient-border {
+  background: linear-gradient(135deg, hsl(120, 100%, 25%), hsl(48, 95%, 65%));
+  padding: 1px;
+  border-radius: var(--radius);
+}
+
+.gradient-border-inner {
+  background: var(--card);
+  border-radius: calc(var(--radius) - 1px);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.status-connected {
+  background-color: hsl(142, 76%, 36%);
+  box-shadow: 0 0 0 2px hsla(142, 76%, 36%, 0.2);
+}
+
+.status-disconnected {
+  background-color: hsl(0, 84%, 60%);
+  box-shadow: 0 0 0 2px hsla(0, 84%, 60%, 0.2);
+}
+
+.copy-button:hover {
+  background-color: hsl(120, 15%, 15%);
+}
+
+.transaction-card {
+  transition: all 0.2s ease;
+}
+
+.transaction-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px hsla(0, 0%, 0%, 0.3);
+}
