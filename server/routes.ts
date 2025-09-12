@@ -3,14 +3,26 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 
+// Ethereum address validation schema
+const ethereumAddressSchema = z.string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address format")
+  .transform(addr => addr.toLowerCase()); // Normalize to lowercase
+
+// Hash validation (64 hex characters)
+const transactionHashSchema = z.string()
+  .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid transaction hash format");
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get transactions for a wallet address
   app.get("/api/transactions/:address", async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = ethereumAddressSchema.parse(req.params.address);
       const transactions = await storage.getTransactionsByAddress(address);
       res.json(transactions);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address format" });
+      }
       console.error("Failed to get transactions:", error);
       res.status(500).json({ error: "Failed to get transactions" });
     }
@@ -20,16 +32,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/transactions", async (req, res) => {
     try {
       const transactionSchema = z.object({
-        hash: z.string(),
-        fromAddress: z.string(),
-        toAddress: z.string(),
-        amount: z.string(),
-        gasPrice: z.string().optional(),
-        gasUsed: z.string().optional(),
-        fee: z.string().optional(),
+        hash: transactionHashSchema,
+        fromAddress: ethereumAddressSchema,
+        toAddress: ethereumAddressSchema,
+        amount: z.string().regex(/^\d+$/, "Amount must be a valid wei string"),
+        gasPrice: z.string().regex(/^\d+$/, "Gas price must be a valid wei string").optional(),
+        gasUsed: z.string().regex(/^\d+$/, "Gas used must be a valid number").optional(),
+        fee: z.string().regex(/^\d+$/, "Fee must be a valid wei string").optional(),
         status: z.enum(["pending", "confirmed", "failed"]).default("pending"),
         network: z.string().default("mainnet"),
-        blockNumber: z.string().optional(),
+        blockNumber: z.string().regex(/^\d+$/, "Block number must be a valid number").optional(),
         metadata: z.any().optional()
       });
 
@@ -45,12 +57,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update transaction status
   app.patch("/api/transactions/:hash", async (req, res) => {
     try {
-      const { hash } = req.params;
+      const hash = transactionHashSchema.parse(req.params.hash);
       const updateSchema = z.object({
         status: z.enum(["pending", "confirmed", "failed"]).optional(),
-        blockNumber: z.string().optional(),
-        gasUsed: z.string().optional(),
-        fee: z.string().optional()
+        blockNumber: z.string().regex(/^\d+$/, "Block number must be a valid number").optional(),
+        gasUsed: z.string().regex(/^\d+$/, "Gas used must be a valid number").optional(),
+        fee: z.string().regex(/^\d+$/, "Fee must be a valid wei string").optional()
       });
 
       const validatedData = updateSchema.parse(req.body);
@@ -62,6 +74,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(transaction);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid hash or data format" });
+      }
       console.error("Failed to update transaction:", error);
       res.status(400).json({ error: "Invalid update data" });
     }
@@ -70,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get or create wallet info
   app.get("/api/wallet/:address", async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = ethereumAddressSchema.parse(req.params.address);
       let wallet = await storage.getWalletByAddress(address);
       
       if (!wallet) {
@@ -84,6 +99,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(wallet);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address format" });
+      }
       console.error("Failed to get wallet:", error);
       res.status(500).json({ error: "Failed to get wallet" });
     }
@@ -92,9 +110,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update wallet balance
   app.patch("/api/wallet/:address", async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = ethereumAddressSchema.parse(req.params.address);
       const updateSchema = z.object({
-        balance: z.string().optional(),
+        balance: z.string().regex(/^\d+$/, "Balance must be a valid wei string").optional(),
         network: z.string().optional()
       });
 
@@ -107,6 +125,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(wallet);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address or data format" });
+      }
       console.error("Failed to update wallet:", error);
       res.status(400).json({ error: "Invalid update data" });
     }

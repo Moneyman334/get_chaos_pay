@@ -37,6 +37,16 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Import and run database health check
+  const { storage } = await import("./storage");
+  
+  try {
+    await storage.healthCheck();
+  } catch (error) {
+    console.error("Failed to start server due to database health check failure:", error);
+    process.exit(1);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

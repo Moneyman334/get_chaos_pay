@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,27 +13,33 @@ export const wallets = pgTable("wallets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   address: text("address").notNull().unique(),
   userId: varchar("user_id").references(() => users.id),
-  balance: decimal("balance", { precision: 18, scale: 8 }),
+  balance: text("balance").default("0"), // Store as wei (string to avoid precision loss)
   network: text("network").notNull().default("mainnet"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  addressLowerIdx: index("wallets_address_lower_idx").on(sql`lower(${table.address})`),
+}));
 
 export const transactions = pgTable("transactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   hash: text("hash").notNull().unique(),
   fromAddress: text("from_address").notNull(),
   toAddress: text("to_address").notNull(),
-  amount: decimal("amount", { precision: 18, scale: 8 }).notNull(),
-  gasPrice: decimal("gas_price", { precision: 18, scale: 0 }),
-  gasUsed: decimal("gas_used", { precision: 18, scale: 0 }),
-  fee: decimal("fee", { precision: 18, scale: 8 }),
+  amount: text("amount").notNull(), // Store as wei (string to avoid precision loss)
+  gasPrice: text("gas_price"), // Store as wei string
+  gasUsed: text("gas_used"), // Store as gas units string
+  fee: text("fee"), // Store as wei string
   status: text("status").notNull().default("pending"), // pending, confirmed, failed
   network: text("network").notNull().default("mainnet"),
-  blockNumber: decimal("block_number", { precision: 18, scale: 0 }),
+  blockNumber: text("block_number"), // Store as string to avoid overflow
   timestamp: timestamp("timestamp").defaultNow(),
   metadata: jsonb("metadata"),
-});
+}, (table) => ({
+  fromAddressLowerIdx: index("transactions_from_address_lower_idx").on(sql`lower(${table.fromAddress})`),
+  toAddressLowerIdx: index("transactions_to_address_lower_idx").on(sql`lower(${table.toAddress})`),
+  timestampIdx: index("transactions_timestamp_idx").on(table.timestamp),
+}));
 
 export const networkInfo = pgTable("network_info", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -42,7 +48,7 @@ export const networkInfo = pgTable("network_info", {
   rpcUrl: text("rpc_url").notNull(),
   blockExplorerUrl: text("block_explorer_url"),
   symbol: text("symbol").notNull().default("ETH"),
-  decimals: decimal("decimals", { precision: 3, scale: 0 }).notNull().default("18"),
+  decimals: text("decimals").notNull().default("18"), // Store as string
   isTestnet: text("is_testnet").notNull().default("false"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
