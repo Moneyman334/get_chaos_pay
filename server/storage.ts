@@ -13,13 +13,25 @@ import {
   type InsertTokenBalance,
   type UserToken,
   type InsertUserToken,
+  type Contract,
+  type InsertContract,
+  type ContractCall,
+  type InsertContractCall,
+  type ContractEventSub,
+  type InsertContractEventSub,
+  type ContractEvent,
+  type InsertContractEvent,
   users,
   wallets,
   transactions,
   networkInfo,
   tokens,
   tokenBalances,
-  userTokens
+  userTokens,
+  contracts,
+  contractCalls,
+  contractEventSubs,
+  contractEvents
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -79,6 +91,35 @@ export interface IStorage {
   addUserToken(userToken: InsertUserToken): Promise<UserToken>;
   removeUserToken(userId: string, walletAddress: string, tokenId: string): Promise<boolean>;
   updateUserToken(id: string, updates: Partial<InsertUserToken>): Promise<UserToken | undefined>;
+  
+  // Contract methods
+  getContract(id: string): Promise<Contract | undefined>;
+  getContractByAddressAndChain(address: string, chainId: string): Promise<Contract | undefined>;
+  getContracts(filters?: { userId?: string; chainId?: string; tags?: string[] }): Promise<Contract[]>;
+  createContract(contract: InsertContract): Promise<Contract>;
+  updateContract(id: string, updates: Partial<InsertContract>): Promise<Contract | undefined>;
+  deleteContract(id: string): Promise<boolean>;
+  
+  // Contract call methods
+  getContractCall(id: string): Promise<ContractCall | undefined>;
+  getContractCalls(contractId: string, pagination?: { page: number; limit: number }): Promise<ContractCall[]>;
+  getContractCallsByAddress(fromAddress: string, pagination?: { page: number; limit: number }): Promise<ContractCall[]>;
+  createContractCall(call: InsertContractCall): Promise<ContractCall>;
+  updateContractCall(id: string, updates: Partial<InsertContractCall>): Promise<ContractCall | undefined>;
+  
+  // Contract event subscription methods
+  getContractEventSub(id: string): Promise<ContractEventSub | undefined>;
+  getContractEventSubs(contractId: string): Promise<ContractEventSub[]>;
+  getActiveEventSubs(): Promise<ContractEventSub[]>;
+  createContractEventSub(subscription: InsertContractEventSub): Promise<ContractEventSub>;
+  updateContractEventSub(id: string, updates: Partial<InsertContractEventSub>): Promise<ContractEventSub | undefined>;
+  deleteContractEventSub(id: string): Promise<boolean>;
+  
+  // Contract event methods
+  getContractEvent(id: string): Promise<ContractEvent | undefined>;
+  getContractEvents(contractId: string, pagination?: { page: number; limit: number }): Promise<ContractEvent[]>;
+  getContractEventsBySubscription(subscriptionId: string, pagination?: { page: number; limit: number }): Promise<ContractEvent[]>;
+  createContractEvent(event: InsertContractEvent): Promise<ContractEvent>;
 }
 
 export class MemStorage implements IStorage {
@@ -89,6 +130,10 @@ export class MemStorage implements IStorage {
   private tokens: Map<string, Token>;
   private tokenBalances: Map<string, TokenBalance>;
   private userTokens: Map<string, UserToken>;
+  private contracts: Map<string, Contract>;
+  private contractCalls: Map<string, ContractCall>;
+  private contractEventSubs: Map<string, ContractEventSub>;
+  private contractEvents: Map<string, ContractEvent>;
 
   constructor() {
     this.users = new Map();
@@ -98,6 +143,10 @@ export class MemStorage implements IStorage {
     this.tokens = new Map();
     this.tokenBalances = new Map();
     this.userTokens = new Map();
+    this.contracts = new Map();
+    this.contractCalls = new Map();
+    this.contractEventSubs = new Map();
+    this.contractEvents = new Map();
   }
 
   // Health check for MemStorage (always passes)
@@ -826,6 +875,224 @@ export class PostgreSQLStorage implements IStorage {
       .set(updateData)
       .where(eq(userTokens.id, id))
       .returning();
+    return result[0];
+  }
+
+  // Contract methods
+  async getContract(id: string): Promise<Contract | undefined> {
+    const result = await db.select().from(contracts)
+      .where(eq(contracts.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getContractByAddressAndChain(address: string, chainId: string): Promise<Contract | undefined> {
+    const normalizedAddress = normalizeAddress(address);
+    const result = await db.select().from(contracts)
+      .where(sql`lower(${contracts.address}) = ${normalizedAddress} AND ${contracts.chainId} = ${chainId}`)
+      .limit(1);
+    return result[0];
+  }
+
+  async getContracts(filters?: { userId?: string; chainId?: string; tags?: string[] }): Promise<Contract[]> {
+    let query = db.select().from(contracts);
+    
+    if (filters?.userId) {
+      query = query.where(eq(contracts.userId, filters.userId));
+    }
+    if (filters?.chainId) {
+      query = query.where(eq(contracts.chainId, filters.chainId));
+    }
+    if (filters?.tags && filters.tags.length > 0) {
+      query = query.where(sql`${contracts.tags} && ${filters.tags}`);
+    }
+    
+    const result = await query.orderBy(desc(contracts.createdAt));
+    return result;
+  }
+
+  async createContract(insertContract: InsertContract): Promise<Contract> {
+    const contractData = {
+      ...insertContract,
+      address: normalizeAddress(insertContract.address),
+      isVerified: insertContract.isVerified || "false"
+    };
+    const result = await db.insert(contracts).values(contractData).returning();
+    return result[0];
+  }
+
+  async updateContract(id: string, updates: Partial<InsertContract>): Promise<Contract | undefined> {
+    const updateData = {
+      ...updates,
+      address: updates.address ? normalizeAddress(updates.address) : undefined,
+      updatedAt: sql`now()`
+    };
+    const result = await db.update(contracts)
+      .set(updateData)
+      .where(eq(contracts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContract(id: string): Promise<boolean> {
+    const result = await db.delete(contracts)
+      .where(eq(contracts.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Contract call methods
+  async getContractCall(id: string): Promise<ContractCall | undefined> {
+    const result = await db.select().from(contractCalls)
+      .where(eq(contractCalls.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getContractCalls(contractId: string, pagination?: { page: number; limit: number }): Promise<ContractCall[]> {
+    const page = pagination?.page || 1;
+    const limit = Math.min(pagination?.limit || 25, 100);
+    const offset = (page - 1) * limit;
+
+    const result = await db.select().from(contractCalls)
+      .where(eq(contractCalls.contractId, contractId))
+      .orderBy(desc(contractCalls.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return result;
+  }
+
+  async getContractCallsByAddress(fromAddress: string, pagination?: { page: number; limit: number }): Promise<ContractCall[]> {
+    const normalizedAddress = normalizeAddress(fromAddress);
+    const page = pagination?.page || 1;
+    const limit = Math.min(pagination?.limit || 25, 100);
+    const offset = (page - 1) * limit;
+
+    const result = await db.select().from(contractCalls)
+      .where(sql`lower(${contractCalls.fromAddress}) = ${normalizedAddress}`)
+      .orderBy(desc(contractCalls.createdAt))
+      .limit(limit)
+      .offset(offset);
+    return result;
+  }
+
+  async createContractCall(insertContractCall: InsertContractCall): Promise<ContractCall> {
+    const callData = {
+      ...insertContractCall,
+      fromAddress: normalizeAddress(insertContractCall.fromAddress),
+      toAddress: normalizeAddress(insertContractCall.toAddress),
+      status: insertContractCall.status || "pending",
+      callType: insertContractCall.callType || "read",
+      value: insertContractCall.value || "0"
+    };
+    const result = await db.insert(contractCalls).values(callData).returning();
+    return result[0];
+  }
+
+  async updateContractCall(id: string, updates: Partial<InsertContractCall>): Promise<ContractCall | undefined> {
+    const updateData = {
+      ...updates,
+      fromAddress: updates.fromAddress ? normalizeAddress(updates.fromAddress) : undefined,
+      toAddress: updates.toAddress ? normalizeAddress(updates.toAddress) : undefined
+    };
+    const result = await db.update(contractCalls)
+      .set(updateData)
+      .where(eq(contractCalls.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Contract event subscription methods
+  async getContractEventSub(id: string): Promise<ContractEventSub | undefined> {
+    const result = await db.select().from(contractEventSubs)
+      .where(eq(contractEventSubs.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getContractEventSubs(contractId: string): Promise<ContractEventSub[]> {
+    const result = await db.select().from(contractEventSubs)
+      .where(eq(contractEventSubs.contractId, contractId))
+      .orderBy(desc(contractEventSubs.createdAt));
+    return result;
+  }
+
+  async getActiveEventSubs(): Promise<ContractEventSub[]> {
+    const result = await db.select().from(contractEventSubs)
+      .where(eq(contractEventSubs.isActive, "true"))
+      .orderBy(desc(contractEventSubs.createdAt));
+    return result;
+  }
+
+  async createContractEventSub(insertEventSub: InsertContractEventSub): Promise<ContractEventSub> {
+    const subData = {
+      ...insertEventSub,
+      isActive: insertEventSub.isActive || "true",
+      fromBlock: insertEventSub.fromBlock || "latest"
+    };
+    const result = await db.insert(contractEventSubs).values(subData).returning();
+    return result[0];
+  }
+
+  async updateContractEventSub(id: string, updates: Partial<InsertContractEventSub>): Promise<ContractEventSub | undefined> {
+    const updateData = {
+      ...updates,
+      updatedAt: sql`now()`
+    };
+    const result = await db.update(contractEventSubs)
+      .set(updateData)
+      .where(eq(contractEventSubs.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContractEventSub(id: string): Promise<boolean> {
+    const result = await db.delete(contractEventSubs)
+      .where(eq(contractEventSubs.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  // Contract event methods
+  async getContractEvent(id: string): Promise<ContractEvent | undefined> {
+    const result = await db.select().from(contractEvents)
+      .where(eq(contractEvents.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getContractEvents(contractId: string, pagination?: { page: number; limit: number }): Promise<ContractEvent[]> {
+    const page = pagination?.page || 1;
+    const limit = Math.min(pagination?.limit || 25, 100);
+    const offset = (page - 1) * limit;
+
+    const result = await db.select().from(contractEvents)
+      .where(eq(contractEvents.contractId, contractId))
+      .orderBy(desc(contractEvents.timestamp))
+      .limit(limit)
+      .offset(offset);
+    return result;
+  }
+
+  async getContractEventsBySubscription(subscriptionId: string, pagination?: { page: number; limit: number }): Promise<ContractEvent[]> {
+    const page = pagination?.page || 1;
+    const limit = Math.min(pagination?.limit || 25, 100);
+    const offset = (page - 1) * limit;
+
+    const result = await db.select().from(contractEvents)
+      .where(eq(contractEvents.subscriptionId, subscriptionId))
+      .orderBy(desc(contractEvents.timestamp))
+      .limit(limit)
+      .offset(offset);
+    return result;
+  }
+
+  async createContractEvent(insertEvent: InsertContractEvent): Promise<ContractEvent> {
+    const eventData = {
+      ...insertEvent,
+      fromAddress: insertEvent.fromAddress ? normalizeAddress(insertEvent.fromAddress) : null
+    };
+    const result = await db.insert(contractEvents).values(eventData).returning();
     return result[0];
   }
 }

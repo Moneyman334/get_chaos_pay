@@ -8,6 +8,7 @@ import Navigation from "@/components/navigation";
 import HomePage from "@/pages/home";
 import GamesPage from "@/pages/games";
 import WalletPage from "@/pages/wallet";
+import ContractsPage from "@/pages/contracts";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/games" component={GamesPage} />
       <Route path="/wallet" component={WalletPage} />
+      <Route path="/contracts" component={ContractsPage} />
       <Route component={NotFound} />
     </Switch>
   );

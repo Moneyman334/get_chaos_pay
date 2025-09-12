@@ -2,7 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertTokenSchema, insertTokenBalanceSchema, insertUserTokenSchema } from "@shared/schema";
+import { 
+  insertTokenSchema, 
+  insertTokenBalanceSchema, 
+  insertUserTokenSchema,
+  insertContractSchema,
+  insertContractCallSchema,
+  insertContractEventSubSchema 
+} from "@shared/schema";
 
 // Ethereum address validation schema
 const ethereumAddressSchema = z.string()
@@ -690,6 +697,369 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Failed to update user token:", error);
       res.status(500).json({ error: "Failed to update user token" });
     }
+  });
+
+  // ================================
+  // CONTRACT MANAGEMENT ROUTES
+  // ================================
+
+  // Get all contracts with optional filtering
+  app.get("/api/contracts", async (req, res) => {
+    try {
+      const filters: { userId?: string; chainId?: string; tags?: string[] } = {};
+      
+      if (req.query.userId) {
+        filters.userId = z.string().parse(req.query.userId);
+      }
+      if (req.query.chainId) {
+        filters.chainId = z.string().parse(req.query.chainId);
+      }
+      if (req.query.tags) {
+        const tagsParam = Array.isArray(req.query.tags) ? req.query.tags : [req.query.tags];
+        filters.tags = tagsParam.map(tag => z.string().parse(tag));
+      }
+
+      const contracts = await storage.getContracts(filters);
+      res.json({ contracts });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid filter parameters", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to get contracts:", error);
+      res.status(500).json({ error: "Failed to get contracts" });
+    }
+  });
+
+  // Create a new contract
+  app.post("/api/contracts", async (req, res) => {
+    try {
+      const contractData = insertContractSchema.parse(req.body);
+      
+      // Check if contract already exists
+      const existing = await storage.getContractByAddressAndChain(
+        contractData.address, 
+        contractData.chainId
+      );
+      
+      if (existing) {
+        return res.status(409).json({ 
+          error: "Contract already exists for this address and chain",
+          existingContract: existing 
+        });
+      }
+
+      const contract = await storage.createContract(contractData);
+      res.status(201).json(contract);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid contract data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to create contract:", error);
+      res.status(500).json({ error: "Failed to create contract" });
+    }
+  });
+
+  // Get a specific contract by ID
+  app.get("/api/contracts/:id", async (req, res) => {
+    try {
+      const id = z.string().parse(req.params.id);
+      const contract = await storage.getContract(id);
+      
+      if (!contract) {
+        return res.status(404).json({ error: "Contract not found" });
+      }
+      
+      res.json(contract);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid contract ID" });
+      }
+      console.error("Failed to get contract:", error);
+      res.status(500).json({ error: "Failed to get contract" });
+    }
+  });
+
+  // Update a contract
+  app.patch("/api/contracts/:id", async (req, res) => {
+    try {
+      const id = z.string().parse(req.params.id);
+      const updateSchema = insertContractSchema.partial();
+      const updateData = updateSchema.parse(req.body);
+      
+      const contract = await storage.updateContract(id, updateData);
+      
+      if (!contract) {
+        return res.status(404).json({ error: "Contract not found" });
+      }
+      
+      res.json(contract);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid contract data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to update contract:", error);
+      res.status(500).json({ error: "Failed to update contract" });
+    }
+  });
+
+  // Delete a contract
+  app.delete("/api/contracts/:id", async (req, res) => {
+    try {
+      const id = z.string().parse(req.params.id);
+      const deleted = await storage.deleteContract(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Contract not found" });
+      }
+      
+      res.json({ success: true, message: "Contract deleted successfully" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid contract ID" });
+      }
+      console.error("Failed to delete contract:", error);
+      res.status(500).json({ error: "Failed to delete contract" });
+    }
+  });
+
+  // Get contract call history with pagination
+  app.get("/api/contracts/:id/calls", async (req, res) => {
+    try {
+      const contractId = z.string().parse(req.params.id);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      
+      const calls = await storage.getContractCalls(contractId, { page, limit });
+      
+      res.json({
+        calls,
+        pagination: {
+          page,
+          limit,
+          hasMore: calls.length === limit
+        }
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid pagination parameters", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to get contract calls:", error);
+      res.status(500).json({ error: "Failed to get contract calls" });
+    }
+  });
+
+  // Record a new contract call
+  app.post("/api/contracts/:id/calls", async (req, res) => {
+    try {
+      const contractId = z.string().parse(req.params.id);
+      const callData = insertContractCallSchema.parse({
+        ...req.body,
+        contractId
+      });
+      
+      const call = await storage.createContractCall(callData);
+      res.status(201).json(call);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid contract call data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to create contract call:", error);
+      res.status(500).json({ error: "Failed to create contract call" });
+    }
+  });
+
+  // Update a contract call (e.g., after transaction confirmation)
+  app.patch("/api/contracts/:contractId/calls/:callId", async (req, res) => {
+    try {
+      const callId = z.string().parse(req.params.callId);
+      const updateSchema = insertContractCallSchema.partial();
+      const updateData = updateSchema.parse(req.body);
+      
+      const call = await storage.updateContractCall(callId, updateData);
+      
+      if (!call) {
+        return res.status(404).json({ error: "Contract call not found" });
+      }
+      
+      res.json(call);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid contract call data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to update contract call:", error);
+      res.status(500).json({ error: "Failed to update contract call" });
+    }
+  });
+
+  // Get contract calls by address (user's call history)
+  app.get("/api/contract-calls/:address", async (req, res) => {
+    try {
+      const address = ethereumAddressSchema.parse(req.params.address);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      
+      const calls = await storage.getContractCallsByAddress(address, { page, limit });
+      
+      res.json({
+        calls,
+        pagination: {
+          page,
+          limit,
+          hasMore: calls.length === limit
+        }
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid address format" });
+      }
+      console.error("Failed to get contract calls by address:", error);
+      res.status(500).json({ error: "Failed to get contract calls" });
+    }
+  });
+
+  // ================================
+  // CONTRACT EVENT SUBSCRIPTION ROUTES
+  // ================================
+
+  // Get event subscriptions for a contract
+  app.get("/api/contracts/:id/event-subscriptions", async (req, res) => {
+    try {
+      const contractId = z.string().parse(req.params.id);
+      const subscriptions = await storage.getContractEventSubs(contractId);
+      res.json({ subscriptions });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid contract ID" });
+      }
+      console.error("Failed to get event subscriptions:", error);
+      res.status(500).json({ error: "Failed to get event subscriptions" });
+    }
+  });
+
+  // Create a new event subscription
+  app.post("/api/contracts/:id/event-subscriptions", async (req, res) => {
+    try {
+      const contractId = z.string().parse(req.params.id);
+      const subData = insertContractEventSubSchema.parse({
+        ...req.body,
+        contractId
+      });
+      
+      const subscription = await storage.createContractEventSub(subData);
+      res.status(201).json(subscription);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid event subscription data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to create event subscription:", error);
+      res.status(500).json({ error: "Failed to create event subscription" });
+    }
+  });
+
+  // Update an event subscription
+  app.patch("/api/event-subscriptions/:id", async (req, res) => {
+    try {
+      const id = z.string().parse(req.params.id);
+      const updateSchema = insertContractEventSubSchema.partial();
+      const updateData = updateSchema.parse(req.body);
+      
+      const subscription = await storage.updateContractEventSub(id, updateData);
+      
+      if (!subscription) {
+        return res.status(404).json({ error: "Event subscription not found" });
+      }
+      
+      res.json(subscription);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid event subscription data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to update event subscription:", error);
+      res.status(500).json({ error: "Failed to update event subscription" });
+    }
+  });
+
+  // Delete an event subscription
+  app.delete("/api/event-subscriptions/:id", async (req, res) => {
+    try {
+      const id = z.string().parse(req.params.id);
+      const deleted = await storage.deleteContractEventSub(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Event subscription not found" });
+      }
+      
+      res.json({ success: true, message: "Event subscription deleted successfully" });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid subscription ID" });
+      }
+      console.error("Failed to delete event subscription:", error);
+      res.status(500).json({ error: "Failed to delete event subscription" });
+    }
+  });
+
+  // Get contract events with pagination
+  app.get("/api/contracts/:id/events", async (req, res) => {
+    try {
+      const contractId = z.string().parse(req.params.id);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
+      
+      const events = await storage.getContractEvents(contractId, { page, limit });
+      
+      res.json({
+        events,
+        pagination: {
+          page,
+          limit,
+          hasMore: events.length === limit
+        }
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid pagination parameters", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to get contract events:", error);
+      res.status(500).json({ error: "Failed to get contract events" });
+    }
+  });
+
+  // Update health check to include contracts service
+  app.get("/api/health", (req, res) => {
+    res.json({ 
+      status: "healthy", 
+      services: ["transactions", "wallets", "tokens", "networks", "contracts"],
+      database: "connected",
+      timestamp: new Date().toISOString()
+    });
   });
 
   const httpServer = createServer(app);
