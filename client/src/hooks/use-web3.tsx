@@ -1,5 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
-import { createWeb3Provider, networks } from "@/lib/web3";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { 
+  createWeb3Provider, 
+  networks, 
+  getNetworkByChainId,
+  formatTokenAmount,
+  getBlockExplorerUrl,
+  isChainSupported,
+  getAllNetworks,
+  weiToGwei,
+  WEI_PER_ETH 
+} from "@/lib/web3";
 import { useToast } from "@/hooks/use-toast";
 
 interface Web3State {
@@ -42,19 +52,34 @@ export function useWeb3() {
           method: 'eth_chainId'
         });
         
-        const network = networks[chainId] || {
-          name: 'Unknown Network',
-          symbol: 'ETH'
+        const network = getNetworkByChainId(chainId) || {
+          name: 'Unsupported Network',
+          symbol: 'ETH',
+          decimals: 18,
+          isTestnet: false,
+          chainType: 'Unknown',
+          icon: '❓',
+          color: 'hsl(0, 0%, 50%)'
         };
         
-        const balanceInEth = (
-          parseInt(balance, 16) / Math.pow(10, 18)
-        ).toFixed(4);
+        const balanceInToken = (() => {
+          try {
+            const balanceBigInt = BigInt(balance);
+            const decimals = BigInt(network.decimals || 18);
+            const divisor = BigInt(10) ** decimals;
+            const intPart = balanceBigInt / divisor;
+            const remainder = balanceBigInt % divisor;
+            const fractional = remainder.toString().padStart(Number(decimals), '0').slice(0, 4);
+            return `${intPart.toString()}.${fractional.replace(/0+$/, '') || '0'}`;
+          } catch {
+            return '0.0000';
+          }
+        })();
         
         updateState({
           isConnected: true,
           account,
-          balance: balanceInEth,
+          balance: balanceInToken,
           network,
           chainId
         });
@@ -119,11 +144,62 @@ export function useWeb3() {
   const switchNetwork = useCallback(async (targetChainId: string) => {
     try {
       if (!window.ethereum) return;
+      
+      const targetNetwork = getNetworkByChainId(targetChainId);
+      if (!targetNetwork) {
+        toast({
+          title: "Unsupported network",
+          description: "The selected network is not supported",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: targetChainId }],
-      });
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }],
+        });
+        
+        toast({
+          title: "Network switched",
+          description: `Switched to ${targetNetwork.name}`,
+        });
+      } catch (switchError: any) {
+        // If the network doesn't exist in MetaMask, try to add it
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: targetChainId,
+                chainName: targetNetwork.name,
+                rpcUrls: [targetNetwork.rpcUrl],
+                blockExplorerUrls: [targetNetwork.blockExplorerUrl],
+                nativeCurrency: {
+                  name: targetNetwork.symbol,
+                  symbol: targetNetwork.symbol,
+                  decimals: targetNetwork.decimals || 18
+                }
+              }],
+            });
+            
+            toast({
+              title: "Network added and switched",
+              description: `Added and switched to ${targetNetwork.name}`,
+            });
+          } catch (addError: any) {
+            console.error("Failed to add network:", addError);
+            toast({
+              title: "Failed to add network",
+              description: addError.message || "Failed to add network to wallet",
+              variant: "destructive",
+            });
+          }
+        } else {
+          throw switchError;
+        }
+      }
     } catch (error: any) {
       console.error("Failed to switch network:", error);
       toast({
@@ -147,7 +223,13 @@ export function useWeb3() {
       });
 
       const blockNum = parseInt(blockNumber, 16).toLocaleString();
-      const gasPriceGwei = (parseInt(gasPrice, 16) / Math.pow(10, 9)).toFixed(1);
+      const gasPriceGwei = (() => {
+        try {
+          return parseFloat(weiToGwei(gasPrice)).toFixed(1);
+        } catch {
+          return '0.0';
+        }
+      })();
 
       updateState({
         blockNumber: blockNum,
@@ -164,12 +246,23 @@ export function useWeb3() {
         throw new Error("Wallet not connected");
       }
 
+      const valueInWei = (() => {
+        try {
+          const [intPart, fracPart = '0'] = value.split('.');
+          const paddedFrac = fracPart.padEnd(18, '0').slice(0, 18);
+          const weiBigInt = BigInt(intPart) * WEI_PER_ETH + BigInt(paddedFrac);
+          return '0x' + weiBigInt.toString(16);
+        } catch {
+          throw new Error('Invalid amount format');
+        }
+      })();
+      
       const gasLimit = await window.ethereum.request({
         method: 'eth_estimateGas',
         params: [{
           from: state.account,
           to,
-          value: '0x' + (parseFloat(value) * Math.pow(10, 18)).toString(16)
+          value: valueInWei
         }]
       });
 
@@ -177,14 +270,23 @@ export function useWeb3() {
         method: 'eth_gasPrice'
       });
 
-      const gasLimitNum = parseInt(gasLimit, 16);
-      const gasPriceNum = parseInt(gasPrice, 16);
-      const fee = (gasLimitNum * gasPriceNum) / Math.pow(10, 18);
+      const gasLimitBigInt = BigInt(gasLimit);
+      const gasPriceBigInt = BigInt(gasPrice);
+      const feeBigInt = gasLimitBigInt * gasPriceBigInt;
+      const feeInEth = (() => {
+        const ethValue = feeBigInt / WEI_PER_ETH;
+        const remainder = feeBigInt % WEI_PER_ETH;
+        const fractional = remainder.toString().padStart(18, '0').slice(0, 6);
+        return `${ethValue.toString()}.${fractional.replace(/0+$/, '') || '0'}`;
+      })();
+      
+      const currentNetwork = getNetworkByChainId(state.chainId || '0x1');
+      const feeSymbol = currentNetwork?.symbol || 'ETH';
 
       return {
-        gasLimit: gasLimitNum.toLocaleString(),
-        gasPrice: `${(gasPriceNum / Math.pow(10, 9)).toFixed(1)} gwei`,
-        estimatedFee: `${fee.toFixed(6)} ETH`
+        gasLimit: gasLimitBigInt.toLocaleString(),
+        gasPrice: `${parseFloat(weiToGwei(gasPrice)).toFixed(1)} gwei`,
+        estimatedFee: formatTokenAmount(feeInEth, feeSymbol)
       };
     } catch (error: any) {
       console.error("Failed to estimate gas:", error);
@@ -198,12 +300,23 @@ export function useWeb3() {
         throw new Error("Wallet not connected");
       }
 
+      const valueInWei = (() => {
+        try {
+          const [intPart, fracPart = '0'] = value.split('.');
+          const paddedFrac = fracPart.padEnd(18, '0').slice(0, 18);
+          const weiBigInt = BigInt(intPart) * WEI_PER_ETH + BigInt(paddedFrac);
+          return '0x' + weiBigInt.toString(16);
+        } catch {
+          throw new Error('Invalid amount format');
+        }
+      })();
+      
       const txHash = await window.ethereum.request({
         method: 'eth_sendTransaction',
         params: [{
           from: state.account,
           to,
-          value: '0x' + (parseFloat(value) * Math.pow(10, 18)).toString(16)
+          value: valueInWei
         }]
       });
 
@@ -246,13 +359,48 @@ export function useWeb3() {
     }
   }, [checkConnection, disconnectWallet]);
 
-  return {
+  // New utility functions for multi-chain support
+  const getAvailableNetworks = useCallback(() => {
+    return getAllNetworks();
+  }, []);
+  
+  const getCurrentNetworkInfo = useCallback(() => {
+    if (!state.chainId) return null;
+    return getNetworkByChainId(state.chainId);
+  }, [state.chainId]);
+  
+  const getTokenExplorerUrl = useCallback((address?: string, txHash?: string) => {
+    if (!state.chainId) return '#';
+    return getBlockExplorerUrl(state.chainId, txHash, address);
+  }, [state.chainId]);
+  
+  const isCurrentNetworkSupported = useCallback(() => {
+    return state.chainId ? isChainSupported(state.chainId) : false;
+  }, [state.chainId]);
+
+  return useMemo(() => ({
     ...state,
     connectWallet,
     disconnectWallet,
     switchNetwork,
     refreshNetworkInfo,
     estimateGas,
-    sendTransaction
-  };
+    sendTransaction,
+    getAvailableNetworks,
+    getCurrentNetworkInfo,
+    getTokenExplorerUrl,
+    isCurrentNetworkSupported
+  }), [
+    state,
+    connectWallet,
+    disconnectWallet,
+    switchNetwork,
+    refreshNetworkInfo,
+    estimateGas,
+    sendTransaction,
+    getAvailableNetworks,
+    getCurrentNetworkInfo,
+    getTokenExplorerUrl,
+    isCurrentNetworkSupported
+  ]);
 }

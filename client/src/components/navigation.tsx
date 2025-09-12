@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useWeb3 } from "@/hooks/use-web3";
+import { getNetworkGroup } from "@/lib/web3";
 import { 
   Wallet, 
   Home, 
   Gamepad2, 
   Menu,
   Coins,
-  Network
+  Network,
+  AlertTriangle,
+  CheckCircle2
 } from "lucide-react";
 
 interface NavigationProps {
@@ -33,22 +38,34 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
     account, 
     balance, 
     network, 
-    switchNetwork 
+    switchNetwork,
+    getAvailableNetworks,
+    getCurrentNetworkInfo,
+    isCurrentNetworkSupported
   } = useWeb3();
 
-  const handleNetworkChange = (networkValue: string) => {
-    const networkMap: Record<string, string> = {
-      "mainnet": "0x1",
-      "goerli": "0x5", 
-      "sepolia": "0xaa36a7",
-      "polygon": "0x89"
-    };
-    
-    const targetChainId = networkMap[networkValue];
-    if (targetChainId) {
-      switchNetwork(targetChainId);
-    }
+  const handleNetworkChange = (chainId: string) => {
+    switchNetwork(chainId);
   };
+  
+  // Organize networks by groups
+  const networkGroups = useMemo(() => {
+    const allNetworks = getAvailableNetworks();
+    const groups: Record<string, any[]> = {};
+    
+    allNetworks.forEach(network => {
+      const group = getNetworkGroup(network);
+      if (!groups[group]) {
+        groups[group] = [];
+      }
+      groups[group].push(network);
+    });
+    
+    return groups;
+  }, [getAvailableNetworks]);
+  
+  const currentNetworkInfo = getCurrentNetworkInfo();
+  const isSupported = isCurrentNetworkSupported();
 
   const isActivePath = (path: string) => {
     if (path === "/") {
@@ -124,27 +141,100 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
             {/* Connection Status */}
             <div className="hidden md:flex items-center space-x-3">
               <div className="flex items-center space-x-2 text-sm">
+                {isConnected && network?.icon && (
+                  <span className="text-base" title={network.name}>{network.icon}</span>
+                )}
                 <span 
-                  className={`status-dot ${isConnected ? 'status-connected' : 'status-disconnected'}`}
+                  className={`status-dot ${
+                    isConnected 
+                      ? isSupported 
+                        ? 'status-connected' 
+                        : 'status-warning'
+                      : 'status-disconnected'
+                  }`}
                   data-testid="nav-connection-status-dot"
                 />
-                <span className="text-muted-foreground" data-testid="nav-connection-status-text">
-                  {isConnected ? `${network?.name || 'Unknown'}` : 'Disconnected'}
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground text-xs" data-testid="nav-connection-status-text">
+                    {isConnected 
+                      ? `${network?.name || 'Unknown'}` 
+                      : 'Disconnected'
+                    }
+                  </span>
+                  {isConnected && (
+                    <div className="flex items-center space-x-1">
+                      {network?.chainType && (
+                        <Badge 
+                          variant={network.chainType === 'L2' ? 'secondary' : 'outline'} 
+                          className="text-xs h-4 px-1"
+                        >
+                          {network.chainType}
+                        </Badge>
+                      )}
+                      {!isSupported && (
+                        <Badge variant="destructive" className="text-xs h-4 px-1">
+                          <AlertTriangle className="w-2 h-2 mr-1" />
+                          Unsupported
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Network Selector */}
+              {/* Enhanced Network Selector */}
               {isConnected && (
-                <Select onValueChange={handleNetworkChange} data-testid="nav-network-select">
-                  <SelectTrigger className="w-40 h-9">
-                    <Network className="h-4 w-4 mr-1" />
-                    <SelectValue placeholder={network?.name || "Network"} />
+                <Select 
+                  onValueChange={handleNetworkChange} 
+                  data-testid="nav-network-select"
+                  value={currentNetworkInfo?.chainId || ''}
+                >
+                  <SelectTrigger className="w-48 h-9">
+                    <div className="flex items-center space-x-2">
+                      {currentNetworkInfo?.icon && (
+                        <span className="text-sm">{currentNetworkInfo.icon}</span>
+                      )}
+                      <Network className="h-4 w-4" />
+                    </div>
+                    <SelectValue placeholder="Select Network" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mainnet">Ethereum</SelectItem>
-                    <SelectItem value="goerli">Goerli</SelectItem>
-                    <SelectItem value="sepolia">Sepolia</SelectItem>
-                    <SelectItem value="polygon">Polygon</SelectItem>
+                  <SelectContent className="w-64">
+                    {Object.entries(networkGroups).map(([groupName, networks]) => (
+                      <div key={groupName}>
+                        <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                          {groupName}
+                        </div>
+                        {networks.map((network) => (
+                          <SelectItem 
+                            key={network.chainId} 
+                            value={network.chainId}
+                            className="pl-4"
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm">{network.icon}</span>
+                                <span>{network.name}</span>
+                                {network.isTestnet && (
+                                  <Badge variant="outline" className="text-xs h-4 px-1">
+                                    Test
+                                  </Badge>
+                                )}
+                                <Badge 
+                                  variant={network.chainType === 'L2' ? 'secondary' : 'outline'}
+                                  className="text-xs h-4 px-1"
+                                >
+                                  {network.chainType}
+                                </Badge>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {network.symbol}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        <Separator className="my-1" />
+                      </div>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
@@ -156,7 +246,7 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
                 <div className="hidden md:flex items-center space-x-3">
                   <div className="text-right">
                     <div className="text-sm font-medium" data-testid="nav-wallet-balance">
-                      {formatBalance(balance)} ETH
+                      {formatBalance(balance)} {network?.symbol || 'ETH'}
                     </div>
                     <div className="text-xs text-muted-foreground" data-testid="nav-wallet-address">
                       {formatAddress(account)}
@@ -222,37 +312,113 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
                       </h3>
                       
                       <div className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                          <span 
-                            className={`status-dot ${isConnected ? 'status-connected' : 'status-disconnected'}`}
-                            data-testid="nav-mobile-connection-status-dot"
-                          />
-                          <span className="text-sm" data-testid="nav-mobile-connection-status-text">
-                            {isConnected ? `Connected to ${network?.name || 'Unknown'}` : 'Disconnected'}
-                          </span>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            {isConnected && network?.icon && (
+                              <span className="text-base">{network.icon}</span>
+                            )}
+                            <span 
+                              className={`status-dot ${
+                                isConnected 
+                                  ? isSupported 
+                                    ? 'status-connected' 
+                                    : 'status-warning'
+                                  : 'status-disconnected'
+                              }`}
+                              data-testid="nav-mobile-connection-status-dot"
+                            />
+                            <span className="text-sm" data-testid="nav-mobile-connection-status-text">
+                              {isConnected ? `Connected to ${network?.name || 'Unknown'}` : 'Disconnected'}
+                            </span>
+                          </div>
+                          {isConnected && (
+                            <div className="flex items-center space-x-2 ml-6">
+                              {network?.chainType && (
+                                <Badge 
+                                  variant={network.chainType === 'L2' ? 'secondary' : 'outline'} 
+                                  className="text-xs h-4 px-1"
+                                >
+                                  {network.chainType}
+                                </Badge>
+                              )}
+                              {!isSupported && (
+                                <Badge variant="destructive" className="text-xs h-4 px-1">
+                                  <AlertTriangle className="w-2 h-2 mr-1" />
+                                  Unsupported
+                                </Badge>
+                              )}
+                              {isSupported && (
+                                <Badge variant="default" className="text-xs h-4 px-1">
+                                  <CheckCircle2 className="w-2 h-2 mr-1" />
+                                  Supported
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {isConnected && (
                           <div className="space-y-3">
                             <div className="space-y-1">
                               <p className="text-sm font-medium" data-testid="nav-mobile-wallet-balance">
-                                Balance: {formatBalance(balance)} ETH
+                                Balance: {formatBalance(balance)} {network?.symbol || 'ETH'}
                               </p>
                               <p className="text-xs text-muted-foreground" data-testid="nav-mobile-wallet-address">
                                 {formatAddress(account)}
                               </p>
                             </div>
 
-                            <Select onValueChange={handleNetworkChange} data-testid="nav-mobile-network-select">
+                            <Select 
+                              onValueChange={handleNetworkChange} 
+                              data-testid="nav-mobile-network-select"
+                              value={currentNetworkInfo?.chainId || ''}
+                            >
                               <SelectTrigger className="w-full">
-                                <Network className="h-4 w-4 mr-2" />
-                                <SelectValue placeholder={network?.name || "Select Network"} />
+                                <div className="flex items-center space-x-2">
+                                  {currentNetworkInfo?.icon && (
+                                    <span className="text-sm">{currentNetworkInfo.icon}</span>
+                                  )}
+                                  <Network className="h-4 w-4" />
+                                </div>
+                                <SelectValue placeholder="Select Network" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="mainnet">Ethereum</SelectItem>
-                                <SelectItem value="goerli">Goerli</SelectItem>
-                                <SelectItem value="sepolia">Sepolia</SelectItem>
-                                <SelectItem value="polygon">Polygon</SelectItem>
+                                {Object.entries(networkGroups).map(([groupName, networks]) => (
+                                  <div key={groupName}>
+                                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                                      {groupName}
+                                    </div>
+                                    {networks.map((network) => (
+                                      <SelectItem 
+                                        key={network.chainId} 
+                                        value={network.chainId}
+                                        className="pl-4"
+                                      >
+                                        <div className="flex items-center justify-between w-full">
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-sm">{network.icon}</span>
+                                            <span>{network.name}</span>
+                                            {network.isTestnet && (
+                                              <Badge variant="outline" className="text-xs h-4 px-1">
+                                                Test
+                                              </Badge>
+                                            )}
+                                            <Badge 
+                                              variant={network.chainType === 'L2' ? 'secondary' : 'outline'}
+                                              className="text-xs h-4 px-1"
+                                            >
+                                              {network.chainType}
+                                            </Badge>
+                                          </div>
+                                          <span className="text-xs text-muted-foreground">
+                                            {network.symbol}
+                                          </span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                    <Separator className="my-1" />
+                                  </div>
+                                ))}
                               </SelectContent>
                             </Select>
 

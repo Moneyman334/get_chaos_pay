@@ -112,6 +112,11 @@
   box-shadow: 0 0 0 2px hsla(0, 84%, 60%, 0.2);
 }
 
+.status-warning {
+  background-color: hsl(48, 95%, 55%);
+  box-shadow: 0 0 0 2px hsla(48, 95%, 55%, 0.2);
+}
+
 .copy-button:hover {
   background-color: hsl(120, 15%, 15%);
 }
