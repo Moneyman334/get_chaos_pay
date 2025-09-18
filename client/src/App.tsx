@@ -8,6 +8,8 @@ import Navigation from "@/components/navigation";
 import HomePage from "@/pages/home";
 import GamesPage from "@/pages/games";
 import WalletPage from "@/pages/wallet";
+import TokensPage from "@/pages/tokens";
+import TransactionsPage from "@/pages/transactions";
 import ContractsPage from "@/pages/contracts";
 import NFTsPage from "@/pages/nfts";
 import NotFound from "@/pages/not-found";
@@ -20,6 +22,8 @@ function Router() {
       <Route path="/" component={HomePage} />
       <Route path="/games" component={GamesPage} />
       <Route path="/wallet" component={WalletPage} />
+      <Route path="/tokens" component={TokensPage} />
+      <Route path="/transactions" component={TransactionsPage} />
       <Route path="/contracts" component={ContractsPage} />
       <Route path="/nfts" component={NFTsPage} />
       <Route component={NotFound} />
