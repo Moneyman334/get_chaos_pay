@@ -40,6 +40,35 @@ The application integrates with MetaMask through the Ethereum provider API. It s
 
 Gas estimation and transaction monitoring are implemented to provide users with accurate fee calculations and real-time transaction status updates. The system automatically detects network changes and updates the UI accordingly.
 
+## Smart Contract Generators
+The platform includes production-ready smart contract generators that create deployment-ready Solidity code:
+
+### Token Creator
+Generates custom ERC-20 tokens with OpenZeppelin contracts (v5.0.0):
+- Configurable features: Mintable, Burnable, Pausable
+- Custom parameters: Name, symbol, initial supply, decimals
+- Multi-network support: Ethereum, Polygon, BSC, Arbitrum, Optimism
+- Production-ready: Compiles in Remix IDE with Solidity 0.8.20
+
+### NFT Creator
+Generates custom NFT collections with three standard options:
+- ERC-721: Standard NFT with metadata storage and batch minting
+- ERC-721A: Gas-optimized batch minting for large collections
+- ERC-1155: Multi-token standard for gaming and fractional NFTs
+- IPFS integration: Base URI support for decentralized metadata
+
+## Multi-Cryptocurrency Support
+The platform supports deposits and payments across multiple blockchain networks:
+
+### Deposit System
+- Bitcoin (BTC), Ethereum (ETH), Solana (SOL), Litecoin (LTC), Dogecoin (DOGE)
+- QR code generation for easy deposits
+- Copy-to-clipboard functionality
+
+### Universal Payments
+- NOWPayments integration foundation for 300+ cryptocurrencies
+- Payment creation with QR codes
+- Real-time payment status tracking
 
 # External Dependencies
 
