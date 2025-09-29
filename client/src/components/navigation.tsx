@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Palette,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Sparkles,
+  Image
 } from "lucide-react";
 
 interface NavigationProps {
@@ -31,6 +33,8 @@ const navigationItems = [
   { path: "/wallet", label: "Wallet", icon: Wallet },
   { path: "/deposits", label: "Deposits", icon: ArrowDownToLine },
   { path: "/crypto-payments", label: "All Crypto", icon: Coins },
+  { path: "/token-creator", label: "Create Token", icon: Sparkles },
+  { path: "/nft-creator", label: "Create NFT", icon: Image },
   { path: "/nfts", label: "NFT Gallery", icon: Palette }
 ];
 
