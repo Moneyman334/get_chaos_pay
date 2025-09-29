@@ -387,15 +387,26 @@ export default function GamesPage() {
       return;
     }
     
-    setIsLoading(true);
-    // Simulate loading
-    setTimeout(() => {
-      setIsLoading(false);
+    // Map game IDs to actual playable games
+    const gameTypeMap: { [key: number]: string } = {
+      3: 'dice',      // DeFi Dice Master
+      1: 'slots',     // Crypto Slots Deluxe
+      6: 'slots',     // Lucky Seven Megaways (also slots)
+      // Add more mappings for coin flip when we have a game for it
+    };
+    
+    const gameType = gameTypeMap[game.id];
+    
+    if (gameType) {
+      // Navigate to actual playable game
+      window.location.href = `/play?type=${gameType}`;
+    } else {
+      // Game not yet implemented
       toast({
-        title: "Game Loading",
-        description: `Starting ${game.name}... (Demo mode)`,
+        title: "Coming Soon",
+        description: `${game.name} will be available soon! Try DeFi Dice Master or Crypto Slots Deluxe.`,
       });
-    }, 1500);
+    }
   };
 
   const VolatilityBadge = ({ volatility }: { volatility: string }) => {
