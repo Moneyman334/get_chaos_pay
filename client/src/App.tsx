@@ -16,6 +16,8 @@ import DepositsPage from "@/pages/deposits";
 import CryptoPaymentsPage from "@/pages/crypto-payments";
 import TokenCreatorPage from "@/pages/token-creator";
 import NFTCreatorPage from "@/pages/nft-creator";
+import SentinelBotPage from "@/pages/sentinel-bot";
+import BotDashboardPage from "@/pages/bot-dashboard";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -34,6 +36,8 @@ function Router() {
       <Route path="/crypto-payments" component={CryptoPaymentsPage} />
       <Route path="/token-creator" component={TokenCreatorPage} />
       <Route path="/nft-creator" component={NFTCreatorPage} />
+      <Route path="/sentinel-bot" component={SentinelBotPage} />
+      <Route path="/bot-dashboard" component={BotDashboardPage} />
       <Route component={NotFound} />
     </Switch>
   );

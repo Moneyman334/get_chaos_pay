@@ -19,7 +19,8 @@ import {
   Palette,
   ArrowDownToLine,
   Sparkles,
-  Image
+  Image,
+  Bot
 } from "lucide-react";
 
 interface NavigationProps {
@@ -29,6 +30,7 @@ interface NavigationProps {
 
 const navigationItems = [
   { path: "/", label: "Home", icon: Home },
+  { path: "/sentinel-bot", label: "Sentinel Bot", icon: Bot },
   { path: "/games", label: "Games", icon: Gamepad2 },
   { path: "/wallet", label: "Wallet", icon: Wallet },
   { path: "/deposits", label: "Deposits", icon: ArrowDownToLine },
