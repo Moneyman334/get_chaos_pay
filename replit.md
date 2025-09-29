@@ -1,6 +1,14 @@
 # Overview
 
-This is a Web3 wallet interface application built with React and Express. The application provides users with the ability to connect their MetaMask wallets, view account balances, send transactions, monitor network information, and track transaction history. It features a modern UI built with shadcn/ui components and Tailwind CSS, with a PostgreSQL database backend for storing transaction data.
+This is a comprehensive Web3 blockchain empire platform built with React and Express. The application provides users with complete cryptocurrency ecosystem tools including:
+- **Multi-Chain Wallet Integration**: Connect MetaMask wallets across Ethereum, Polygon, BSC, Arbitrum, and Optimism
+- **Multi-Crypto Deposits**: Accept deposits in BTC, ETH, SOL, LTC, and DOGE with QR codes
+- **Universal Crypto Payments**: Support for 300+ cryptocurrencies through NOWPayments integration
+- **Token Creator**: Deploy custom ERC-20 tokens with OpenZeppelin contracts (mintable, burnable, pausable features)
+- **NFT Creator**: Deploy custom NFT collections (ERC-721, ERC-721A, ERC-1155 standards)
+- **Transaction Management**: Send transactions, track history, and monitor network information
+
+The platform features a modern UI built with shadcn/ui components and Tailwind CSS, with a PostgreSQL database backend for storing transaction data. Deployed at chaoskey333casino.com with production-ready smart contract generators.
 
 # User Preferences
 
@@ -32,12 +40,6 @@ The application integrates with MetaMask through the Ethereum provider API. It s
 
 Gas estimation and transaction monitoring are implemented to provide users with accurate fee calculations and real-time transaction status updates. The system automatically detects network changes and updates the UI accordingly.
 
-## Component Structure
-The UI is organized into reusable components following atomic design principles:
-- Connection management components for wallet interactions
-- Transaction components for sending and displaying transaction history
-- Network information displays with real-time updates
-- Form components with validation using react-hook-form and Zod
 
 # External Dependencies
 
