@@ -1666,6 +1666,322 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== SENTINEL BOT ROUTES =====
+  
+  // Get all available bot strategies
+  app.get("/api/bot/strategies", async (req, res) => {
+    try {
+      const strategies = await storage.getAllBotStrategies();
+      res.json(strategies);
+    } catch (error) {
+      console.error("Failed to fetch bot strategies:", error);
+      res.status(500).json({ error: "Failed to fetch bot strategies" });
+    }
+  });
+
+  // Get bot subscription plans
+  app.get("/api/bot/plans", async (req, res) => {
+    try {
+      const plans = [
+        {
+          id: 'starter',
+          name: 'Starter',
+          price: '99',
+          currency: 'USD',
+          features: [
+            '1 Active Strategy',
+            '10 Trades Per Day',
+            'Basic Technical Indicators',
+            'Email Notifications',
+            'Stop Loss & Take Profit'
+          ],
+          maxActiveStrategies: '1',
+          maxDailyTrades: '10',
+          popular: false
+        },
+        {
+          id: 'pro',
+          name: 'Pro',
+          price: '299',
+          currency: 'USD',
+          features: [
+            '3 Active Strategies',
+            '50 Trades Per Day',
+            'Advanced AI Signals',
+            'Real-time Alerts',
+            'Risk Management Tools',
+            'Priority Support'
+          ],
+          maxActiveStrategies: '3',
+          maxDailyTrades: '50',
+          popular: true
+        },
+        {
+          id: 'elite',
+          name: 'Elite',
+          price: '999',
+          currency: 'USD',
+          features: [
+            'Unlimited Strategies',
+            'Unlimited Trades',
+            'Custom Strategy Builder',
+            'Dedicated Account Manager',
+            'API Access',
+            'White-Glove Onboarding'
+          ],
+          maxActiveStrategies: '999',
+          maxDailyTrades: '999',
+          popular: false
+        }
+      ];
+      
+      res.json(plans);
+    } catch (error) {
+      console.error("Failed to fetch bot plans:", error);
+      res.status(500).json({ error: "Failed to fetch bot plans" });
+    }
+  });
+
+  // Create bot subscription
+  app.post("/api/bot/subscribe", async (req, res) => {
+    try {
+      const subscriptionSchema = z.object({
+        userId: z.string(),
+        planType: z.enum(['starter', 'pro', 'elite']),
+        price: z.string(),
+        currency: z.string().default('USD'),
+        paymentTxHash: z.string().optional()
+      });
+
+      const data = subscriptionSchema.parse(req.body);
+      
+      const planConfig = {
+        starter: { maxActiveStrategies: '1', maxDailyTrades: '10', features: ['basic'] },
+        pro: { maxActiveStrategies: '3', maxDailyTrades: '50', features: ['advanced'] },
+        elite: { maxActiveStrategies: '999', maxDailyTrades: '999', features: ['unlimited'] }
+      };
+
+      const config = planConfig[data.planType];
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+      const subscription = await storage.createBotSubscription({
+        userId: data.userId,
+        planType: data.planType,
+        status: 'active',
+        startDate: new Date(),
+        expiryDate,
+        price: data.price,
+        currency: data.currency,
+        paymentTxHash: data.paymentTxHash,
+        maxActiveStrategies: config.maxActiveStrategies,
+        maxDailyTrades: config.maxDailyTrades,
+        features: config.features,
+        autoRenew: 'false'
+      });
+
+      res.status(201).json(subscription);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid subscription data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to create subscription:", error);
+      res.status(500).json({ error: "Failed to create subscription" });
+    }
+  });
+
+  // Get user subscription
+  app.get("/api/bot/subscription/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const subscription = await storage.getUserBotSubscription(userId);
+      
+      if (!subscription) {
+        return res.status(404).json({ error: "No active subscription found" });
+      }
+
+      res.json(subscription);
+    } catch (error) {
+      console.error("Failed to fetch subscription:", error);
+      res.status(500).json({ error: "Failed to fetch subscription" });
+    }
+  });
+
+  // Save user bot configuration
+  app.post("/api/bot/config", async (req, res) => {
+    try {
+      const configSchema = z.object({
+        userId: z.string(),
+        subscriptionId: z.string(),
+        coinbaseApiKey: z.string().optional(),
+        coinbaseApiSecret: z.string().optional(),
+        coinbasePassphrase: z.string().optional(),
+        maxPositionSize: z.string().default('1000'),
+        maxDailyLoss: z.string().default('100'),
+        stopLossPercent: z.string().default('5'),
+        takeProfitPercent: z.string().default('10'),
+        enableNotifications: z.string().default('true'),
+        notificationEmail: z.string().email().optional()
+      });
+
+      const data = configSchema.parse(req.body);
+      const config = await storage.saveBotUserConfig(data);
+
+      res.status(201).json(config);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid configuration data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to save bot configuration:", error);
+      res.status(500).json({ error: "Failed to save bot configuration" });
+    }
+  });
+
+  // Get user bot configuration
+  app.get("/api/bot/config/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const config = await storage.getUserBotConfig(userId);
+      
+      if (!config) {
+        return res.status(404).json({ error: "No configuration found" });
+      }
+
+      const safeConfig = {
+        ...config,
+        coinbaseApiKey: config.coinbaseApiKey ? '***' : null,
+        coinbaseApiSecret: config.coinbaseApiSecret ? '***' : null,
+        coinbasePassphrase: config.coinbasePassphrase ? '***' : null
+      };
+
+      res.json(safeConfig);
+    } catch (error) {
+      console.error("Failed to fetch bot configuration:", error);
+      res.status(500).json({ error: "Failed to fetch bot configuration" });
+    }
+  });
+
+  // Start bot with strategy
+  app.post("/api/bot/start", async (req, res) => {
+    try {
+      const startSchema = z.object({
+        userId: z.string(),
+        strategyId: z.string(),
+        tradingPairs: z.array(z.string()),
+        allocatedCapital: z.string()
+      });
+
+      const data = startSchema.parse(req.body);
+      
+      const config = await storage.getUserBotConfig(data.userId);
+      if (!config) {
+        return res.status(400).json({ error: "Bot configuration not found. Please configure your Coinbase API keys first." });
+      }
+
+      const subscription = await storage.getUserBotSubscription(data.userId);
+      if (!subscription || subscription.status !== 'active') {
+        return res.status(403).json({ error: "Active subscription required" });
+      }
+
+      const activeStrategy = await storage.createBotActiveStrategy({
+        userId: data.userId,
+        strategyId: data.strategyId,
+        configId: config.id,
+        status: 'active',
+        tradingPairs: data.tradingPairs,
+        allocatedCapital: data.allocatedCapital,
+        currentProfit: '0',
+        totalTrades: '0',
+        winRate: '0'
+      });
+
+      res.status(201).json(activeStrategy);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid start data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to start bot:", error);
+      res.status(500).json({ error: "Failed to start bot" });
+    }
+  });
+
+  // Get user active strategies
+  app.get("/api/bot/active/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const strategies = await storage.getUserActiveStrategies(userId);
+      res.json(strategies);
+    } catch (error) {
+      console.error("Failed to fetch active strategies:", error);
+      res.status(500).json({ error: "Failed to fetch active strategies" });
+    }
+  });
+
+  // Stop bot strategy
+  app.post("/api/bot/stop/:activeStrategyId", async (req, res) => {
+    try {
+      const { activeStrategyId } = req.params;
+      await storage.stopBotStrategy(activeStrategyId);
+      res.json({ success: true, message: "Bot stopped successfully" });
+    } catch (error) {
+      console.error("Failed to stop bot:", error);
+      res.status(500).json({ error: "Failed to stop bot" });
+    }
+  });
+
+  // Get bot trades
+  app.get("/api/bot/trades/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const trades = await storage.getUserBotTrades(userId, limit);
+      res.json(trades);
+    } catch (error) {
+      console.error("Failed to fetch bot trades:", error);
+      res.status(500).json({ error: "Failed to fetch bot trades" });
+    }
+  });
+
+  // Get bot performance metrics
+  app.get("/api/bot/performance/:activeStrategyId", async (req, res) => {
+    try {
+      const { activeStrategyId } = req.params;
+      const trades = await storage.getStrategyTrades(activeStrategyId);
+      
+      const totalTrades = trades.length;
+      const winningTrades = trades.filter((t: any) => parseFloat(t.profit || '0') > 0).length;
+      const losingTrades = trades.filter((t: any) => parseFloat(t.profit || '0') < 0).length;
+      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+      
+      const totalProfit = trades.reduce((sum: number, t: any) => {
+        return sum + parseFloat(t.profit || '0');
+      }, 0);
+
+      const metrics = {
+        totalTrades,
+        winningTrades,
+        losingTrades,
+        winRate: winRate.toFixed(2),
+        totalProfit: totalProfit.toFixed(2),
+        averageProfit: totalTrades > 0 ? (totalProfit / totalTrades).toFixed(2) : '0.00'
+      };
+
+      res.json(metrics);
+    } catch (error) {
+      console.error("Failed to fetch performance metrics:", error);
+      res.status(500).json({ error: "Failed to fetch performance metrics" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

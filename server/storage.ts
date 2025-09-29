@@ -40,7 +40,12 @@ import {
   contractEvents,
   nftCollections,
   nfts,
-  nftOwnerships
+  nftOwnerships,
+  botStrategies,
+  botSubscriptions,
+  botUserConfigs,
+  botActiveStrategies,
+  botTrades
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -179,6 +184,26 @@ export interface IStorage {
     walletAddress: string,
     filters?: { chainId?: string; collectionId?: string }
   ): Promise<Record<string, Record<string, number>>>;
+  
+  // Bot Strategy methods
+  getAllBotStrategies(): Promise<any[]>;
+  
+  // Bot Subscription methods
+  createBotSubscription(subscription: any): Promise<any>;
+  getUserBotSubscription(userId: string): Promise<any | undefined>;
+  
+  // Bot User Config methods
+  saveBotUserConfig(config: any): Promise<any>;
+  getUserBotConfig(userId: string): Promise<any | undefined>;
+  
+  // Bot Active Strategy methods
+  createBotActiveStrategy(strategy: any): Promise<any>;
+  getUserActiveStrategies(userId: string): Promise<any[]>;
+  stopBotStrategy(activeStrategyId: string): Promise<void>;
+  
+  // Bot Trade methods
+  getUserBotTrades(userId: string, limit: number): Promise<any[]>;
+  getStrategyTrades(activeStrategyId: string): Promise<any[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -1651,6 +1676,85 @@ export class PostgreSQLStorage implements IStorage {
     });
 
     return facets;
+  }
+
+  // Bot Strategy methods
+  async getAllBotStrategies() {
+    const strategies = await db.select().from(botStrategies).where(eq(botStrategies.isActive, 'true'));
+    return strategies;
+  }
+
+  // Bot Subscription methods
+  async createBotSubscription(subscription: any) {
+    const [created] = await db.insert(botSubscriptions).values(subscription).returning();
+    return created;
+  }
+
+  async getUserBotSubscription(userId: string) {
+    const [subscription] = await db.select().from(botSubscriptions)
+      .where(eq(botSubscriptions.userId, userId))
+      .orderBy(desc(botSubscriptions.createdAt))
+      .limit(1);
+    return subscription;
+  }
+
+  // Bot User Config methods
+  async saveBotUserConfig(config: any) {
+    const existing = await this.getUserBotConfig(config.userId);
+    
+    if (existing) {
+      const [updated] = await db.update(botUserConfigs)
+        .set({ ...config, updatedAt: new Date() })
+        .where(eq(botUserConfigs.userId, config.userId))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(botUserConfigs).values(config).returning();
+      return created;
+    }
+  }
+
+  async getUserBotConfig(userId: string) {
+    const [config] = await db.select().from(botUserConfigs)
+      .where(eq(botUserConfigs.userId, userId))
+      .orderBy(desc(botUserConfigs.createdAt))
+      .limit(1);
+    return config;
+  }
+
+  // Bot Active Strategy methods
+  async createBotActiveStrategy(strategy: any) {
+    const [created] = await db.insert(botActiveStrategies).values(strategy).returning();
+    return created;
+  }
+
+  async getUserActiveStrategies(userId: string) {
+    const strategies = await db.select().from(botActiveStrategies)
+      .where(eq(botActiveStrategies.userId, userId))
+      .orderBy(desc(botActiveStrategies.startedAt));
+    return strategies;
+  }
+
+  async stopBotStrategy(activeStrategyId: string) {
+    await db.update(botActiveStrategies)
+      .set({ status: 'stopped', stoppedAt: new Date() })
+      .where(eq(botActiveStrategies.id, activeStrategyId));
+  }
+
+  // Bot Trade methods
+  async getUserBotTrades(userId: string, limit: number) {
+    const trades = await db.select().from(botTrades)
+      .where(eq(botTrades.userId, userId))
+      .orderBy(desc(botTrades.createdAt))
+      .limit(limit);
+    return trades;
+  }
+
+  async getStrategyTrades(activeStrategyId: string) {
+    const trades = await db.select().from(botTrades)
+      .where(eq(botTrades.activeStrategyId, activeStrategyId))
+      .orderBy(desc(botTrades.createdAt));
+    return trades;
   }
 }
 
