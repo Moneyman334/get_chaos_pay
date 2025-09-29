@@ -105,12 +105,31 @@ export function useWeb3() {
     }
   }, []);
 
+  const isMobile = useMemo(() => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }, []);
+
   const connectWallet = useCallback(async () => {
     try {
       if (!window.ethereum) {
+        // Mobile device without MetaMask - redirect to MetaMask mobile app
+        if (isMobile) {
+          const currentUrl = window.location.href;
+          const metamaskAppDeepLink = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+          
+          toast({
+            title: "Open in MetaMask App",
+            description: "Redirecting to MetaMask mobile app...",
+          });
+          
+          // Redirect to MetaMask mobile app
+          window.location.href = metamaskAppDeepLink;
+          return;
+        }
+        
         toast({
           title: "MetaMask not found",
-          description: "Please install MetaMask to connect your wallet",
+          description: "Please install MetaMask browser extension or use MetaMask mobile app",
           variant: "destructive",
         });
         return;
