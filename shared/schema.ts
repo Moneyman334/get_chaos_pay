@@ -385,3 +385,157 @@ export type InsertNft = z.infer<typeof insertNftSchema>;
 export type Nft = typeof nfts.$inferSelect;
 export type InsertNftOwnership = z.infer<typeof insertNftOwnershipSchema>;
 export type NftOwnership = typeof nftOwnerships.$inferSelect;
+
+export const botStrategies = pgTable("bot_strategies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  strategyType: text("strategy_type").notNull(), // trend, momentum, arbitrage, grid, dca
+  icon: text("icon").notNull().default("🤖"),
+  isActive: text("is_active").notNull().default("true"),
+  riskLevel: text("risk_level").notNull().default("medium"), // low, medium, high
+  minInvestment: text("min_investment").notNull().default("100"),
+  expectedReturn: text("expected_return").default("0"),
+  config: jsonb("config").notNull(), // Strategy-specific parameters
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  typeIdx: index("bot_strategies_type_idx").on(table.strategyType),
+  activeIdx: index("bot_strategies_active_idx").on(table.isActive),
+}));
+
+export const botSubscriptions = pgTable("bot_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  planType: text("plan_type").notNull(), // starter, pro, elite
+  status: text("status").notNull().default("active"), // active, paused, cancelled, expired
+  startDate: timestamp("start_date").notNull().defaultNow(),
+  expiryDate: timestamp("expiry_date"),
+  price: text("price").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  paymentTxHash: text("payment_tx_hash"), // Crypto payment transaction hash
+  maxActiveStrategies: text("max_active_strategies").notNull().default("1"),
+  maxDailyTrades: text("max_daily_trades").notNull().default("10"),
+  features: jsonb("features").notNull(), // List of enabled features
+  autoRenew: text("auto_renew").notNull().default("false"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("bot_subscriptions_user_idx").on(table.userId),
+  statusIdx: index("bot_subscriptions_status_idx").on(table.status),
+  expiryIdx: index("bot_subscriptions_expiry_idx").on(table.expiryDate),
+}));
+
+export const botUserConfigs = pgTable("bot_user_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  subscriptionId: varchar("subscription_id").notNull().references(() => botSubscriptions.id),
+  coinbaseApiKey: text("coinbase_api_key"), // Encrypted
+  coinbaseApiSecret: text("coinbase_api_secret"), // Encrypted
+  coinbasePassphrase: text("coinbase_passphrase"), // Encrypted
+  isConnected: text("is_connected").notNull().default("false"),
+  maxPositionSize: text("max_position_size").notNull().default("1000"), // Max USD per trade
+  maxDailyLoss: text("max_daily_loss").notNull().default("100"), // Max daily loss in USD
+  stopLossPercent: text("stop_loss_percent").notNull().default("5"), // Percentage
+  takeProfitPercent: text("take_profit_percent").notNull().default("10"), // Percentage
+  enableNotifications: text("enable_notifications").notNull().default("true"),
+  notificationEmail: text("notification_email"),
+  lastConnected: timestamp("last_connected"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("bot_user_configs_user_idx").on(table.userId),
+  subscriptionIdx: index("bot_user_configs_subscription_idx").on(table.subscriptionId),
+  connectedIdx: index("bot_user_configs_connected_idx").on(table.isConnected),
+}));
+
+export const botActiveStrategies = pgTable("bot_active_strategies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  strategyId: varchar("strategy_id").notNull().references(() => botStrategies.id),
+  configId: varchar("config_id").notNull().references(() => botUserConfigs.id),
+  status: text("status").notNull().default("active"), // active, paused, stopped
+  tradingPairs: text("trading_pairs").array().notNull(), // ["BTC-USD", "ETH-USD"]
+  allocatedCapital: text("allocated_capital").notNull(), // USD amount allocated
+  currentProfit: text("current_profit").notNull().default("0"),
+  totalTrades: text("total_trades").notNull().default("0"),
+  winRate: text("win_rate").notNull().default("0"),
+  customConfig: jsonb("custom_config"), // User overrides for strategy params
+  startedAt: timestamp("started_at").defaultNow(),
+  pausedAt: timestamp("paused_at"),
+  stoppedAt: timestamp("stopped_at"),
+  lastTradeAt: timestamp("last_trade_at"),
+}, (table) => ({
+  userIdx: index("bot_active_strategies_user_idx").on(table.userId),
+  strategyIdx: index("bot_active_strategies_strategy_idx").on(table.strategyId),
+  statusIdx: index("bot_active_strategies_status_idx").on(table.status),
+  lastTradeIdx: index("bot_active_strategies_last_trade_idx").on(table.lastTradeAt),
+}));
+
+export const botTrades = pgTable("bot_trades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  activeStrategyId: varchar("active_strategy_id").notNull().references(() => botActiveStrategies.id),
+  strategyId: varchar("strategy_id").notNull().references(() => botStrategies.id),
+  tradingPair: text("trading_pair").notNull(), // BTC-USD
+  side: text("side").notNull(), // buy, sell
+  orderType: text("order_type").notNull(), // market, limit
+  price: text("price").notNull(), // Execution price
+  amount: text("amount").notNull(), // Crypto amount
+  total: text("total").notNull(), // Total USD value
+  fee: text("fee").notNull().default("0"),
+  profit: text("profit"), // Realized profit/loss (for sell orders)
+  status: text("status").notNull().default("pending"), // pending, filled, cancelled, failed
+  coinbaseOrderId: text("coinbase_order_id").unique(),
+  reason: text("reason"), // Why the trade was made
+  metadata: jsonb("metadata"), // Additional trade data
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("bot_trades_user_idx").on(table.userId),
+  activeStrategyIdx: index("bot_trades_active_strategy_idx").on(table.activeStrategyId),
+  strategyIdx: index("bot_trades_strategy_idx").on(table.strategyId),
+  statusIdx: index("bot_trades_status_idx").on(table.status),
+  pairIdx: index("bot_trades_pair_idx").on(table.tradingPair),
+  createdAtIdx: index("bot_trades_created_at_idx").on(table.createdAt),
+  executedAtIdx: index("bot_trades_executed_at_idx").on(table.executedAt),
+}));
+
+export const insertBotStrategySchema = createInsertSchema(botStrategies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBotSubscriptionSchema = createInsertSchema(botSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBotUserConfigSchema = createInsertSchema(botUserConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBotActiveStrategySchema = createInsertSchema(botActiveStrategies).omit({
+  id: true,
+  startedAt: true,
+});
+
+export const insertBotTradeSchema = createInsertSchema(botTrades).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertBotStrategy = z.infer<typeof insertBotStrategySchema>;
+export type BotStrategy = typeof botStrategies.$inferSelect;
+export type InsertBotSubscription = z.infer<typeof insertBotSubscriptionSchema>;
+export type BotSubscription = typeof botSubscriptions.$inferSelect;
+export type InsertBotUserConfig = z.infer<typeof insertBotUserConfigSchema>;
+export type BotUserConfig = typeof botUserConfigs.$inferSelect;
+export type InsertBotActiveStrategy = z.infer<typeof insertBotActiveStrategySchema>;
+export type BotActiveStrategy = typeof botActiveStrategies.$inferSelect;
+export type InsertBotTrade = z.infer<typeof insertBotTradeSchema>;
+export type BotTrade = typeof botTrades.$inferSelect;
