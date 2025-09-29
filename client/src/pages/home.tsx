@@ -44,15 +44,19 @@ export default function HomePage() {
       {/* Hero Section */}
       <div className="text-center mb-12">
         <div className="inline-block">
-          <Badge variant="secondary" className="mb-4" data-testid="new-badge">
-            🎰 New Platform
+          <Badge className="mb-4 bg-gradient-to-r from-yellow-500 to-amber-500 text-black border-none font-bold animate-pulse" data-testid="new-badge">
+            👑 CODEX OF THE CHAOS EMPIRE • EVOLUTION OF THE FUTURE 👑
           </Badge>
         </div>
-        <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          The Future of Fair Gaming
+        <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 bg-clip-text text-transparent">
+          Chaos Empire
         </h1>
+        <h2 className="text-2xl md:text-3xl font-bold mb-6 text-foreground">
+          The Ultimate Blockchain Empire Platform
+        </h2>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4">
-          Experience provably fair cryptocurrency gaming with instant payouts, transparent odds, and blockchain-verified results. Where every bet is auditable and every win is guaranteed.
+          Multi-chain casino games • AI-powered Sentinel trading bot • Token & NFT creation • Player-owned liquidity •
+          The future of decentralized gaming and finance, all in one unstoppable empire.
         </p>
         <div className="flex items-center justify-center gap-6 mb-8 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
@@ -69,9 +73,14 @@ export default function HomePage() {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link href="/empire">
+            <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-black font-bold" data-testid="button-enter-empire">
+              👑 Enter the Empire <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
           <Link href="/games">
-            <Button size="lg" className="w-full sm:w-auto" data-testid="button-start-playing">
-              Start Playing <ArrowRight className="ml-2 h-4 w-4" />
+            <Button variant="outline" size="lg" className="w-full sm:w-auto" data-testid="button-start-playing">
+              Play Games
             </Button>
           </Link>
           {!isConnected && (
