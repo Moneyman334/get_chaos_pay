@@ -378,21 +378,12 @@ export default function GamesPage() {
   });
 
   const handlePlayGame = (game: Game) => {
-    if (!isConnected) {
-      toast({
-        title: "Wallet Required",
-        description: "Please connect your wallet to play games.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     // Map game IDs to actual playable games
     const gameTypeMap: { [key: number]: string } = {
       3: 'dice',      // DeFi Dice Master
       1: 'slots',     // Crypto Slots Deluxe
       6: 'slots',     // Lucky Seven Megaways (also slots)
-      // Add more mappings for coin flip when we have a game for it
+      2: 'coinflip',  // Crypto Coin Flip
     };
     
     const gameType = gameTypeMap[game.id];
@@ -404,7 +395,7 @@ export default function GamesPage() {
       // Game not yet implemented
       toast({
         title: "Coming Soon",
-        description: `${game.name} will be available soon! Try DeFi Dice Master or Crypto Slots Deluxe.`,
+        description: `${game.name} will be available soon! Try DeFi Dice Master, Crypto Slots Deluxe, or Crypto Coin Flip.`,
       });
     }
   };

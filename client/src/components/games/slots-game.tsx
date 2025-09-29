@@ -32,15 +32,6 @@ export default function SlotsGame() {
   const { toast } = useToast();
 
   const spin = async () => {
-    if (!isConnected) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet to play",
-        variant: "destructive"
-      });
-      return;
-    }
-
     if (parseFloat(betAmount) <= 0) {
       toast({
         title: "Invalid Bet",
@@ -147,18 +138,16 @@ export default function SlotsGame() {
                 className="mt-2"
                 data-testid="input-bet-amount"
               />
-              {balance && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Balance: {balance} ETH
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {isConnected && balance ? `Balance: ${balance} ETH` : 'Demo Mode: Unlimited Balance'}
+              </p>
             </div>
 
             <Button
               className="w-full"
               size="lg"
               onClick={spin}
-              disabled={spinning || !isConnected}
+              disabled={spinning}
               data-testid="button-spin"
             >
               {spinning ? (

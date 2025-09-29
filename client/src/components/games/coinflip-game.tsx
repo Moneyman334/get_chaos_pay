@@ -22,15 +22,6 @@ export default function CoinFlipGame() {
   const { toast } = useToast();
 
   const flip = async () => {
-    if (!isConnected) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet to play",
-        variant: "destructive"
-      });
-      return;
-    }
-
     if (parseFloat(betAmount) <= 0) {
       toast({
         title: "Invalid Bet",
@@ -113,11 +104,9 @@ export default function CoinFlipGame() {
                 className="mt-2"
                 data-testid="input-bet-amount"
               />
-              {balance && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Balance: {balance} ETH
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {isConnected && balance ? `Balance: ${balance} ETH` : 'Demo Mode: Unlimited Balance'}
+              </p>
             </div>
 
             <div>
@@ -165,7 +154,7 @@ export default function CoinFlipGame() {
               className="w-full"
               size="lg"
               onClick={flip}
-              disabled={flipping || !isConnected}
+              disabled={flipping}
               data-testid="button-flip"
             >
               {flipping ? (
