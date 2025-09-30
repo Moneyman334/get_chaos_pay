@@ -1230,7 +1230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const nftSlowDown = slowDown({
     windowMs: 5 * 60 * 1000, // 5 minutes
     delayAfter: 20, // Allow 20 requests per 5 minutes at full speed
-    delayMs: 500, // Add 500ms delay per request after limit
+    delayMs: () => 500, // Add 500ms delay per request after limit
     maxDelayMs: 10000, // Maximum delay of 10 seconds
     skipFailedRequests: false,
     skipSuccessfulRequests: false,
