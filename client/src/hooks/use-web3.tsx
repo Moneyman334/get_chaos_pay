@@ -97,8 +97,15 @@ export function useWeb3() {
           chainId
         });
         
+        // Save connection preference
+        localStorage.setItem('web3_connected', 'true');
+        localStorage.setItem('web3_last_account', account);
+        
         // Get additional network info
         await refreshNetworkInfo();
+      } else {
+        // Clear connection if no accounts
+        localStorage.removeItem('web3_connected');
       }
     } catch (error) {
       console.error("Failed to check connection:", error);
@@ -109,7 +116,7 @@ export function useWeb3() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
-  const connectWallet = useCallback(async () => {
+  const connectWallet = useCallback(async (retryCount = 0) => {
     try {
       if (!window.ethereum) {
         // Mobile device without MetaMask - redirect to MetaMask mobile app
@@ -148,13 +155,28 @@ export function useWeb3() {
       }
     } catch (error: any) {
       console.error("Failed to connect wallet:", error);
+      
+      // Retry logic only for transient errors (not user rejection)
+      if (retryCount < 2 && error.code === -32002) {
+        // -32002 means request is already pending, retry makes sense
+        toast({
+          title: "Retrying connection",
+          description: "Please check your wallet for pending requests...",
+        });
+        setTimeout(() => connectWallet(retryCount + 1), 1000);
+        return;
+      }
+      
+      // User rejection (4001) or other errors - show immediately without retry
       toast({
         title: "Connection failed",
-        description: error.message || "Failed to connect wallet",
+        description: error.code === 4001 
+          ? "Connection request was rejected" 
+          : error.message || "Failed to connect wallet",
         variant: "destructive",
       });
     }
-  }, [checkConnection, toast]);
+  }, [checkConnection, toast, isMobile]);
 
   const disconnectWallet = useCallback(() => {
     updateState({
@@ -166,6 +188,10 @@ export function useWeb3() {
       blockNumber: undefined,
       gasPrice: undefined
     });
+    
+    // Clear connection preference
+    localStorage.removeItem('web3_connected');
+    localStorage.removeItem('web3_last_account');
     
     toast({
       title: "Wallet disconnected",
@@ -366,7 +392,12 @@ export function useWeb3() {
 
   // Initialize and setup event listeners
   useEffect(() => {
-    checkConnection();
+    // Auto-reconnect if previously connected
+    const wasConnected = localStorage.getItem('web3_connected') === 'true';
+    
+    if (wasConnected && window.ethereum) {
+      checkConnection();
+    }
 
     if (window.ethereum) {
       const handleAccountsChanged = (accounts: string[]) => {
@@ -378,7 +409,8 @@ export function useWeb3() {
       };
 
       const handleChainChanged = () => {
-        checkConnection();
+        // Reload page on chain change for data consistency
+        window.location.reload();
       };
 
       window.ethereum.on('accountsChanged', handleAccountsChanged);
