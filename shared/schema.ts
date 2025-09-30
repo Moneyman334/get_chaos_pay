@@ -555,11 +555,14 @@ export const houseVaults = pgTable("house_vaults", {
   riskLevel: text("risk_level").notNull().default("low"), // low, medium, high
   lockPeriod: text("lock_period").default("0"), // Days before withdrawal allowed (0 = no lock)
   performanceFee: text("performance_fee").notNull().default("10"), // Percentage of profits taken as fee
+  vaultAddress: text("vault_address").notNull(), // Ethereum address where ETH is sent
+  chainId: text("chain_id").notNull().default("0x1"), // Network chain ID
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   tierIdx: index("house_vaults_tier_idx").on(table.tier),
   statusIdx: index("house_vaults_status_idx").on(table.status),
+  vaultAddressIdx: index("house_vaults_vault_address_idx").on(sql`lower(${table.vaultAddress})`),
 }));
 
 export const housePositions = pgTable("house_positions", {
@@ -574,7 +577,9 @@ export const housePositions = pgTable("house_positions", {
   totalEarnings: text("total_earnings").notNull().default("0"), // Total earned
   claimedEarnings: text("claimed_earnings").notNull().default("0"), // Already claimed
   pendingEarnings: text("pending_earnings").notNull().default("0"), // Ready to claim
-  status: text("status").notNull().default("active"), // active, withdrawn, locked
+  status: text("status").notNull().default("active"), // active, withdrawn, locked, pending
+  stakeTxHash: text("stake_tx_hash"), // Transaction hash for stake
+  unstakeTxHash: text("unstake_tx_hash"), // Transaction hash for unstake
   stakedAt: timestamp("staked_at").notNull().defaultNow(),
   unlocksAt: timestamp("unlocks_at"), // When position can be withdrawn
   lastClaimAt: timestamp("last_claim_at"),
@@ -585,6 +590,7 @@ export const housePositions = pgTable("house_positions", {
   userIdx: index("house_positions_user_idx").on(table.userId),
   statusIdx: index("house_positions_status_idx").on(table.status),
   stakedAtIdx: index("house_positions_staked_at_idx").on(table.stakedAt),
+  stakeTxHashIdx: index("house_positions_stake_tx_hash_idx").on(table.stakeTxHash),
 }));
 
 export const houseDistributions = pgTable("house_distributions", {
