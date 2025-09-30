@@ -116,7 +116,7 @@ export default function HouseVaultsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-500" data-testid="stat-total-locked">
-              {vaults?.reduce((sum: number, v: any) => sum + parseFloat(v.totalStaked || '0'), 0).toFixed(2)} ETH
+              {Number(vaults?.reduce((sum: number, v: any) => sum + parseFloat(v.totalStaked || '0'), 0) ?? 0).toFixed(2)} ETH
             </div>
             <p className="text-xs text-muted-foreground mt-1">Across all vaults</p>
           </CardContent>
@@ -129,7 +129,7 @@ export default function HouseVaultsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-500" data-testid="stat-active-stakers">
-              {vaults?.reduce((sum: number, v: any) => sum + parseInt(v.activePositions || '0'), 0)}
+              {vaults?.reduce((sum: number, v: any) => sum + parseInt(v.activePositions || '0'), 0) ?? 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Total participants</p>
           </CardContent>
@@ -142,7 +142,7 @@ export default function HouseVaultsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-purple-500" data-testid="stat-total-earnings">
-              {vaults?.reduce((sum: number, v: any) => sum + parseFloat(v.totalEarnings || '0'), 0).toFixed(2)} ETH
+              {Number(vaults?.reduce((sum: number, v: any) => sum + parseFloat(v.totalEarnings || '0'), 0) ?? 0).toFixed(2)} ETH
             </div>
             <p className="text-xs text-muted-foreground mt-1">Distributed to stakers</p>
           </CardContent>
@@ -155,7 +155,7 @@ export default function HouseVaultsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-yellow-500" data-testid="stat-user-position">
-              {userPositions?.filter((p: any) => p.status === 'active').reduce((sum: number, p: any) => sum + parseFloat(p.stakedAmount || '0'), 0).toFixed(2) || '0.00'} ETH
+              {Number((userPositions ?? []).filter((p: any) => p.status === 'active').reduce((sum: number, p: any) => sum + parseFloat(p.stakedAmount || '0'), 0)).toFixed(2)} ETH
             </div>
             <p className="text-xs text-muted-foreground mt-1">Your staked amount</p>
           </CardContent>
@@ -263,7 +263,7 @@ export default function HouseVaultsPage() {
             ))}
           </div>
 
-          {!vaults || vaults.length === 0 && (
+          {(!vaults || vaults.length === 0) && (
             <Card>
               <CardContent className="p-12 text-center">
                 <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
