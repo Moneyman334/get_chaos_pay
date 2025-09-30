@@ -58,6 +58,7 @@ import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
 import CosmicCursor from "@/components/cosmic-cursor";
+import EmpireOracle from "@/components/empire-oracle";
 
 function Router() {
   return (
@@ -158,6 +159,9 @@ function AppContent() {
             // TODO: Implement WalletConnect
           }}
         />
+
+        {/* Empire Oracle - Available on all pages */}
+        <EmpireOracle />
       </div>
     </TooltipProvider>
   );

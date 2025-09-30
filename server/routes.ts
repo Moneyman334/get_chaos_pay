@@ -4367,13 +4367,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let totalValue = 0;
       let activePositions = 0;
 
-      // Aggregate staking positions
-      const stakingPositions = await storage.getUserStakingPositions(walletAddress);
-      for (const pos of stakingPositions) {
-        totalInvested += parseFloat(pos.amount);
-        totalValue += parseFloat(pos.amount) + parseFloat(pos.rewards);
-        totalEarned += parseFloat(pos.rewards);
-        if (pos.status === 'active') activePositions++;
+      // Aggregate staking positions if method exists
+      try {
+        if (typeof storage.getUserStakingPositions === 'function') {
+          const stakingPositions = await storage.getUserStakingPositions(walletAddress);
+          for (const pos of stakingPositions) {
+            totalInvested += parseFloat(pos.amount);
+            totalValue += parseFloat(pos.amount) + parseFloat(pos.rewards);
+            totalEarned += parseFloat(pos.rewards);
+            if (pos.status === 'active') activePositions++;
+          }
+        }
+      } catch (e) {
+        // Staking data may not be available
+        console.log("Staking positions not available:", e);
       }
 
       // Aggregate from wallet balance if available
@@ -4401,7 +4408,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Failed to fetch empire stats:", error);
-      res.status(500).json({ error: "Failed to fetch empire stats" });
+      // Return safe defaults instead of 500 error
+      res.json({
+        totalPortfolioValue: "0.00",
+        totalInvested: "0.00",
+        totalEarned: "0.00",
+        activePositions: 0,
+        totalPnL: "0.00",
+        pnlPercent: "0.00%"
+      });
     }
   });
 
