@@ -1131,6 +1131,245 @@ export const refunds = pgTable("refunds", {
   statusIdx: index("refunds_status_idx").on(table.status),
 }));
 
+// Subscription Plans
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 20, scale: 8 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  billingInterval: text("billing_interval").notNull(), // daily, weekly, monthly, yearly
+  trialDays: text("trial_days").default("0"),
+  features: text("features").array(),
+  maxSubscribers: text("max_subscribers"),
+  isActive: text("is_active").notNull().default("true"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  activeIdx: index("subscription_plans_active_idx").on(table.isActive),
+}));
+
+// Customer Subscriptions
+export const subscriptions = pgTable("subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  planId: varchar("plan_id").notNull().references(() => subscriptionPlans.id),
+  customerWallet: text("customer_wallet").notNull(),
+  status: text("status").notNull().default("active"), // active, cancelled, expired, paused
+  startDate: timestamp("start_date").notNull().defaultNow(),
+  nextBillingDate: timestamp("next_billing_date").notNull(),
+  cancelledAt: timestamp("cancelled_at"),
+  pausedAt: timestamp("paused_at"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  customerWalletLowerIdx: index("subscriptions_customer_wallet_lower_idx").on(sql`lower(${table.customerWallet})`),
+  statusIdx: index("subscriptions_status_idx").on(table.status),
+  nextBillingIdx: index("subscriptions_next_billing_idx").on(table.nextBillingDate),
+}));
+
+// Subscription Billing History
+export const subscriptionBillings = pgTable("subscription_billings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
+  amount: decimal("amount", { precision: 20, scale: 8 }).notNull(),
+  currency: text("currency").notNull(),
+  status: text("status").notNull().default("pending"), // pending, paid, failed, refunded
+  txHash: text("tx_hash"),
+  paymentMethod: text("payment_method"),
+  billingDate: timestamp("billing_date").notNull().defaultNow(),
+  paidAt: timestamp("paid_at"),
+  failureReason: text("failure_reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  subscriptionIdx: index("subscription_billings_subscription_idx").on(table.subscriptionId),
+  statusIdx: index("subscription_billings_status_idx").on(table.status),
+}));
+
+// Affiliate Program
+export const affiliates = pgTable("affiliates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull().unique(),
+  referralCode: text("referral_code").notNull().unique(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull().default("5.00"), // percentage
+  totalEarned: decimal("total_earned", { precision: 20, scale: 8 }).notNull().default("0"),
+  pendingEarnings: decimal("pending_earnings", { precision: 20, scale: 8 }).notNull().default("0"),
+  totalReferrals: text("total_referrals").notNull().default("0"),
+  status: text("status").notNull().default("active"), // active, suspended, banned
+  payoutWallet: text("payout_wallet"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  walletLowerIdx: index("affiliates_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  referralCodeIdx: index("affiliates_referral_code_idx").on(table.referralCode),
+  statusIdx: index("affiliates_status_idx").on(table.status),
+}));
+
+// Affiliate Referrals & Commissions
+export const affiliateReferrals = pgTable("affiliate_referrals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  affiliateId: varchar("affiliate_id").notNull().references(() => affiliates.id),
+  referredWallet: text("referred_wallet").notNull(),
+  orderId: varchar("order_id").references(() => orders.id),
+  commissionAmount: decimal("commission_amount", { precision: 20, scale: 8 }).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
+  orderAmount: decimal("order_amount", { precision: 20, scale: 8 }).notNull(),
+  status: text("status").notNull().default("pending"), // pending, approved, paid, cancelled
+  paidAt: timestamp("paid_at"),
+  paidTxHash: text("paid_tx_hash"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  affiliateIdx: index("affiliate_referrals_affiliate_idx").on(table.affiliateId),
+  referredWalletLowerIdx: index("affiliate_referrals_referred_wallet_lower_idx").on(sql`lower(${table.referredWallet})`),
+  statusIdx: index("affiliate_referrals_status_idx").on(table.status),
+}));
+
+// Product Variants (Size, Color, etc.)
+export const productVariants = pgTable("product_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  sku: text("sku").notNull().unique(),
+  name: text("name").notNull(), // e.g., "Large / Red"
+  attributes: jsonb("attributes").notNull(), // { size: "L", color: "red" }
+  price: decimal("price", { precision: 20, scale: 8 }).notNull(),
+  compareAtPrice: decimal("compare_at_price", { precision: 20, scale: 8 }),
+  stock: text("stock").notNull().default("0"),
+  lowStockThreshold: text("low_stock_threshold").default("5"),
+  image: text("image"),
+  isActive: text("is_active").notNull().default("true"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  productIdx: index("product_variants_product_idx").on(table.productId),
+  skuIdx: index("product_variants_sku_idx").on(table.sku),
+  activeIdx: index("product_variants_active_idx").on(table.isActive),
+}));
+
+// Flash Sales
+export const flashSales = pgTable("flash_sales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  discountType: text("discount_type").notNull(), // percentage, fixed
+  discountValue: decimal("discount_value", { precision: 20, scale: 8 }).notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  maxQuantity: text("max_quantity"), // total items available in sale
+  soldQuantity: text("sold_quantity").notNull().default("0"),
+  applicableProducts: text("applicable_products").array(), // product IDs
+  status: text("status").notNull().default("scheduled"), // scheduled, active, ended, cancelled
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  statusIdx: index("flash_sales_status_idx").on(table.status),
+  startTimeIdx: index("flash_sales_start_time_idx").on(table.startTime),
+  endTimeIdx: index("flash_sales_end_time_idx").on(table.endTime),
+}));
+
+// Abandoned Carts
+export const abandonedCarts = pgTable("abandoned_carts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerWallet: text("customer_wallet").notNull(),
+  items: jsonb("items").notNull(), // array of { productId, quantity, price }
+  subtotal: decimal("subtotal", { precision: 20, scale: 8 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  recoveryEmailSent: text("recovery_email_sent").notNull().default("false"),
+  recoveryEmailSentAt: timestamp("recovery_email_sent_at"),
+  converted: text("converted").notNull().default("false"),
+  convertedOrderId: varchar("converted_order_id").references(() => orders.id),
+  convertedAt: timestamp("converted_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  customerWalletLowerIdx: index("abandoned_carts_customer_wallet_lower_idx").on(sql`lower(${table.customerWallet})`),
+  convertedIdx: index("abandoned_carts_converted_idx").on(table.converted),
+  expiresAtIdx: index("abandoned_carts_expires_at_idx").on(table.expiresAt),
+}));
+
+// Customer Tiers (VIP, Wholesale, etc.)
+export const customerTiers = pgTable("customer_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).notNull().default("0"),
+  minPurchaseAmount: decimal("min_purchase_amount", { precision: 20, scale: 8 }),
+  benefits: text("benefits").array(),
+  color: text("color").default("#3b82f6"),
+  icon: text("icon"),
+  priority: text("priority").notNull().default("0"), // higher = better tier
+  isActive: text("is_active").notNull().default("true"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  activeIdx: index("customer_tiers_active_idx").on(table.isActive),
+  priorityIdx: index("customer_tiers_priority_idx").on(table.priority),
+}));
+
+// Customer Tier Assignments
+export const customerTierAssignments = pgTable("customer_tier_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerWallet: text("customer_wallet").notNull(),
+  tierId: varchar("tier_id").notNull().references(() => customerTiers.id),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  assignedBy: text("assigned_by"), // admin wallet or "auto"
+  metadata: jsonb("metadata"),
+}, (table) => ({
+  customerWalletLowerIdx: index("customer_tier_assignments_customer_wallet_lower_idx").on(sql`lower(${table.customerWallet})`),
+  tierIdx: index("customer_tier_assignments_tier_idx").on(table.tierId),
+}));
+
+// Product Recommendations
+export const productRecommendations = pgTable("product_recommendations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  recommendedProductId: varchar("recommended_product_id").notNull().references(() => products.id),
+  type: text("type").notNull(), // cross_sell, upsell, related, bundle
+  score: decimal("score", { precision: 5, scale: 2 }).default("1.0"), // relevance score
+  isActive: text("is_active").notNull().default("true"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  productIdx: index("product_recommendations_product_idx").on(table.productId),
+  typeIdx: index("product_recommendations_type_idx").on(table.type),
+  activeIdx: index("product_recommendations_active_idx").on(table.isActive),
+}));
+
+// Pre-orders
+export const preOrders = pgTable("pre_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  customerWallet: text("customer_wallet").notNull(),
+  quantity: text("quantity").notNull(),
+  totalAmount: decimal("total_amount", { precision: 20, scale: 8 }).notNull(),
+  currency: text("currency").notNull(),
+  depositAmount: decimal("deposit_amount", { precision: 20, scale: 8 }), // partial payment
+  depositPaid: text("deposit_paid").notNull().default("false"),
+  depositTxHash: text("deposit_tx_hash"),
+  status: text("status").notNull().default("pending"), // pending, confirmed, fulfilled, cancelled
+  expectedReleaseDate: timestamp("expected_release_date"),
+  fulfilledAt: timestamp("fulfilled_at"),
+  orderId: varchar("order_id").references(() => orders.id),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  productIdx: index("pre_orders_product_idx").on(table.productId),
+  customerWalletLowerIdx: index("pre_orders_customer_wallet_lower_idx").on(sql`lower(${table.customerWallet})`),
+  statusIdx: index("pre_orders_status_idx").on(table.status),
+}));
+
+// Recently Viewed Products
+export const recentlyViewed = pgTable("recently_viewed", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerWallet: text("customer_wallet").notNull(),
+  productId: varchar("product_id").notNull().references(() => products.id),
+  viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+}, (table) => ({
+  customerWalletLowerIdx: index("recently_viewed_customer_wallet_lower_idx").on(sql`lower(${table.customerWallet})`),
+  productIdx: index("recently_viewed_product_idx").on(table.productId),
+  viewedAtIdx: index("recently_viewed_viewed_at_idx").on(table.viewedAt),
+}));
+
 export const insertProductSchema = createInsertSchema(products).omit({
   id: true,
   createdAt: true,
@@ -1241,3 +1480,97 @@ export type InsertNftReceipt = z.infer<typeof insertNftReceiptSchema>;
 export type NftReceipt = typeof nftReceipts.$inferSelect;
 export type InsertRefund = z.infer<typeof insertRefundSchema>;
 export type Refund = typeof refunds.$inferSelect;
+
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSubscriptionBillingSchema = createInsertSchema(subscriptionBillings).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAffiliateSchema = createInsertSchema(affiliates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAffiliateReferralSchema = createInsertSchema(affiliateReferrals).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertProductVariantSchema = createInsertSchema(productVariants).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertFlashSaleSchema = createInsertSchema(flashSales).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAbandonedCartSchema = createInsertSchema(abandonedCarts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCustomerTierSchema = createInsertSchema(customerTiers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCustomerTierAssignmentSchema = createInsertSchema(customerTierAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+
+export const insertProductRecommendationSchema = createInsertSchema(productRecommendations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPreOrderSchema = createInsertSchema(preOrders).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertRecentlyViewedSchema = createInsertSchema(recentlyViewed).omit({
+  id: true,
+  viewedAt: true,
+});
+
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type InsertSubscriptionBilling = z.infer<typeof insertSubscriptionBillingSchema>;
+export type SubscriptionBilling = typeof subscriptionBillings.$inferSelect;
+export type InsertAffiliate = z.infer<typeof insertAffiliateSchema>;
+export type Affiliate = typeof affiliates.$inferSelect;
+export type InsertAffiliateReferral = z.infer<typeof insertAffiliateReferralSchema>;
+export type AffiliateReferral = typeof affiliateReferrals.$inferSelect;
+export type InsertProductVariant = z.infer<typeof insertProductVariantSchema>;
+export type ProductVariant = typeof productVariants.$inferSelect;
+export type InsertFlashSale = z.infer<typeof insertFlashSaleSchema>;
+export type FlashSale = typeof flashSales.$inferSelect;
+export type InsertAbandonedCart = z.infer<typeof insertAbandonedCartSchema>;
+export type AbandonedCart = typeof abandonedCarts.$inferSelect;
+export type InsertCustomerTier = z.infer<typeof insertCustomerTierSchema>;
+export type CustomerTier = typeof customerTiers.$inferSelect;
+export type InsertCustomerTierAssignment = z.infer<typeof insertCustomerTierAssignmentSchema>;
+export type CustomerTierAssignment = typeof customerTierAssignments.$inferSelect;
+export type InsertProductRecommendation = z.infer<typeof insertProductRecommendationSchema>;
+export type ProductRecommendation = typeof productRecommendations.$inferSelect;
+export type InsertPreOrder = z.infer<typeof insertPreOrderSchema>;
+export type PreOrder = typeof preOrders.$inferSelect;
+export type InsertRecentlyViewed = z.infer<typeof insertRecentlyViewedSchema>;
+export type RecentlyViewed = typeof recentlyViewed.$inferSelect;

@@ -3787,6 +3787,562 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch refunds" });
     }
   });
+
+  // ==================== SUBSCRIPTION SYSTEM ====================
+  
+  // Get all subscription plans
+  app.get("/api/subscriptions/plans", async (req, res) => {
+    try {
+      const plans = await dbClient.select().from(subscriptionPlans)
+        .where(eq(subscriptionPlans.isActive, "true"));
+      res.json(plans);
+    } catch (error) {
+      console.error("Failed to fetch subscription plans:", error);
+      res.status(500).json({ error: "Failed to fetch subscription plans" });
+    }
+  });
+
+  // Create subscription plan
+  app.post("/api/subscriptions/plans", async (req, res) => {
+    try {
+      const schema = insertSubscriptionPlanSchema;
+      const data = schema.parse(req.body);
+      
+      const plan = await dbClient.insert(subscriptionPlans).values(data).returning();
+      res.json(plan[0]);
+    } catch (error) {
+      console.error("Failed to create subscription plan:", error);
+      res.status(500).json({ error: "Failed to create subscription plan" });
+    }
+  });
+
+  // Subscribe to a plan
+  app.post("/api/subscriptions", async (req, res) => {
+    try {
+      const schema = insertSubscriptionSchema;
+      const data = schema.parse(req.body);
+      
+      const subscription = await dbClient.insert(subscriptions).values(data).returning();
+      res.json(subscription[0]);
+    } catch (error) {
+      console.error("Failed to create subscription:", error);
+      res.status(500).json({ error: "Failed to create subscription" });
+    }
+  });
+
+  // Get user subscriptions
+  app.get("/api/subscriptions/wallet/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const userSubscriptions = await dbClient.select().from(subscriptions)
+        .where(eq(sql`lower(${subscriptions.customerWallet})`, walletAddress.toLowerCase()));
+      res.json(userSubscriptions);
+    } catch (error) {
+      console.error("Failed to fetch subscriptions:", error);
+      res.status(500).json({ error: "Failed to fetch subscriptions" });
+    }
+  });
+
+  // Cancel subscription
+  app.post("/api/subscriptions/:id/cancel", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [subscription] = await dbClient.update(subscriptions)
+        .set({ status: "cancelled", cancelledAt: new Date() })
+        .where(eq(subscriptions.id, id))
+        .returning();
+      res.json(subscription);
+    } catch (error) {
+      console.error("Failed to cancel subscription:", error);
+      res.status(500).json({ error: "Failed to cancel subscription" });
+    }
+  });
+
+  // Get subscription billing history
+  app.get("/api/subscriptions/:id/billings", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const billings = await dbClient.select().from(subscriptionBillings)
+        .where(eq(subscriptionBillings.subscriptionId, id))
+        .orderBy(desc(subscriptionBillings.billingDate));
+      res.json(billings);
+    } catch (error) {
+      console.error("Failed to fetch billing history:", error);
+      res.status(500).json({ error: "Failed to fetch billing history" });
+    }
+  });
+
+  // ==================== AFFILIATE SYSTEM ====================
+  
+  // Register as affiliate
+  app.post("/api/affiliates", async (req, res) => {
+    try {
+      const schema = insertAffiliateSchema;
+      const data = schema.parse(req.body);
+      
+      // Generate unique referral code
+      const referralCode = `REF${Date.now().toString(36).toUpperCase()}`;
+      const affiliate = await dbClient.insert(affiliates).values({
+        ...data,
+        referralCode,
+      }).returning();
+      
+      res.json(affiliate[0]);
+    } catch (error) {
+      console.error("Failed to register affiliate:", error);
+      res.status(500).json({ error: "Failed to register affiliate" });
+    }
+  });
+
+  // Get affiliate by wallet
+  app.get("/api/affiliates/wallet/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const [affiliate] = await dbClient.select().from(affiliates)
+        .where(eq(sql`lower(${affiliates.walletAddress})`, walletAddress.toLowerCase()));
+      res.json(affiliate || null);
+    } catch (error) {
+      console.error("Failed to fetch affiliate:", error);
+      res.status(500).json({ error: "Failed to fetch affiliate" });
+    }
+  });
+
+  // Get affiliate by referral code
+  app.get("/api/affiliates/code/:referralCode", async (req, res) => {
+    try {
+      const { referralCode } = req.params;
+      const [affiliate] = await dbClient.select().from(affiliates)
+        .where(eq(affiliates.referralCode, referralCode.toUpperCase()));
+      res.json(affiliate || null);
+    } catch (error) {
+      console.error("Failed to fetch affiliate:", error);
+      res.status(500).json({ error: "Failed to fetch affiliate" });
+    }
+  });
+
+  // Track affiliate referral
+  app.post("/api/affiliates/referrals", async (req, res) => {
+    try {
+      const schema = insertAffiliateReferralSchema;
+      const data = schema.parse(req.body);
+      
+      const referral = await dbClient.insert(affiliateReferrals).values(data).returning();
+      
+      // Update affiliate totals
+      await dbClient.update(affiliates)
+        .set({
+          totalReferrals: sql`${affiliates.totalReferrals}::int + 1`,
+          pendingEarnings: sql`${affiliates.pendingEarnings}::numeric + ${data.commissionAmount}`,
+        })
+        .where(eq(affiliates.id, data.affiliateId));
+      
+      res.json(referral[0]);
+    } catch (error) {
+      console.error("Failed to track referral:", error);
+      res.status(500).json({ error: "Failed to track referral" });
+    }
+  });
+
+  // Get affiliate referrals
+  app.get("/api/affiliates/:id/referrals", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const referrals = await dbClient.select().from(affiliateReferrals)
+        .where(eq(affiliateReferrals.affiliateId, id))
+        .orderBy(desc(affiliateReferrals.createdAt));
+      res.json(referrals);
+    } catch (error) {
+      console.error("Failed to fetch referrals:", error);
+      res.status(500).json({ error: "Failed to fetch referrals" });
+    }
+  });
+
+  // ==================== PRODUCT VARIANTS ====================
+  
+  // Get variants for product
+  app.get("/api/products/:productId/variants", async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const variants = await dbClient.select().from(productVariants)
+        .where(and(
+          eq(productVariants.productId, productId),
+          eq(productVariants.isActive, "true")
+        ));
+      res.json(variants);
+    } catch (error) {
+      console.error("Failed to fetch product variants:", error);
+      res.status(500).json({ error: "Failed to fetch product variants" });
+    }
+  });
+
+  // Create product variant
+  app.post("/api/products/:productId/variants", async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const schema = insertProductVariantSchema;
+      const data = schema.parse(req.body);
+      
+      const variant = await dbClient.insert(productVariants).values({
+        ...data,
+        productId,
+      }).returning();
+      
+      res.json(variant[0]);
+    } catch (error) {
+      console.error("Failed to create product variant:", error);
+      res.status(500).json({ error: "Failed to create product variant" });
+    }
+  });
+
+  // Update variant stock
+  app.patch("/api/variants/:id/stock", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { stock } = req.body;
+      
+      const [variant] = await dbClient.update(productVariants)
+        .set({ stock: stock.toString() })
+        .where(eq(productVariants.id, id))
+        .returning();
+      
+      res.json(variant);
+    } catch (error) {
+      console.error("Failed to update variant stock:", error);
+      res.status(500).json({ error: "Failed to update variant stock" });
+    }
+  });
+
+  // ==================== FLASH SALES ====================
+  
+  // Get active flash sales
+  app.get("/api/flash-sales/active", async (req, res) => {
+    try {
+      const now = new Date();
+      const sales = await dbClient.select().from(flashSales)
+        .where(and(
+          eq(flashSales.status, "active"),
+          lte(flashSales.startTime, now),
+          gte(flashSales.endTime, now)
+        ));
+      res.json(sales);
+    } catch (error) {
+      console.error("Failed to fetch flash sales:", error);
+      res.status(500).json({ error: "Failed to fetch flash sales" });
+    }
+  });
+
+  // Create flash sale
+  app.post("/api/flash-sales", async (req, res) => {
+    try {
+      const schema = insertFlashSaleSchema;
+      const data = schema.parse(req.body);
+      
+      const sale = await dbClient.insert(flashSales).values(data).returning();
+      res.json(sale[0]);
+    } catch (error) {
+      console.error("Failed to create flash sale:", error);
+      res.status(500).json({ error: "Failed to create flash sale" });
+    }
+  });
+
+  // Get flash sale by ID
+  app.get("/api/flash-sales/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [sale] = await dbClient.select().from(flashSales)
+        .where(eq(flashSales.id, id));
+      res.json(sale || null);
+    } catch (error) {
+      console.error("Failed to fetch flash sale:", error);
+      res.status(500).json({ error: "Failed to fetch flash sale" });
+    }
+  });
+
+  // ==================== ABANDONED CARTS ====================
+  
+  // Save/update abandoned cart
+  app.post("/api/abandoned-carts", async (req, res) => {
+    try {
+      const schema = insertAbandonedCartSchema;
+      const data = schema.parse(req.body);
+      
+      // Set expiry to 7 days from now
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      
+      const cart = await dbClient.insert(abandonedCarts).values({
+        ...data,
+        expiresAt,
+      }).returning();
+      
+      res.json(cart[0]);
+    } catch (error) {
+      console.error("Failed to save abandoned cart:", error);
+      res.status(500).json({ error: "Failed to save abandoned cart" });
+    }
+  });
+
+  // Get user's abandoned carts
+  app.get("/api/abandoned-carts/wallet/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const carts = await dbClient.select().from(abandonedCarts)
+        .where(and(
+          eq(sql`lower(${abandonedCarts.customerWallet})`, walletAddress.toLowerCase()),
+          eq(abandonedCarts.converted, "false"),
+          gte(abandonedCarts.expiresAt, new Date())
+        ))
+        .orderBy(desc(abandonedCarts.updatedAt));
+      res.json(carts);
+    } catch (error) {
+      console.error("Failed to fetch abandoned carts:", error);
+      res.status(500).json({ error: "Failed to fetch abandoned carts" });
+    }
+  });
+
+  // Mark cart as converted
+  app.post("/api/abandoned-carts/:id/convert", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { orderId } = req.body;
+      
+      const [cart] = await dbClient.update(abandonedCarts)
+        .set({
+          converted: "true",
+          convertedOrderId: orderId,
+          convertedAt: new Date(),
+        })
+        .where(eq(abandonedCarts.id, id))
+        .returning();
+      
+      res.json(cart);
+    } catch (error) {
+      console.error("Failed to mark cart as converted:", error);
+      res.status(500).json({ error: "Failed to mark cart as converted" });
+    }
+  });
+
+  // ==================== CUSTOMER TIERS ====================
+  
+  // Get all tiers
+  app.get("/api/customer-tiers", async (req, res) => {
+    try {
+      const tiers = await dbClient.select().from(customerTiers)
+        .where(eq(customerTiers.isActive, "true"))
+        .orderBy(desc(customerTiers.priority));
+      res.json(tiers);
+    } catch (error) {
+      console.error("Failed to fetch customer tiers:", error);
+      res.status(500).json({ error: "Failed to fetch customer tiers" });
+    }
+  });
+
+  // Create tier
+  app.post("/api/customer-tiers", async (req, res) => {
+    try {
+      const schema = insertCustomerTierSchema;
+      const data = schema.parse(req.body);
+      
+      const tier = await dbClient.insert(customerTiers).values(data).returning();
+      res.json(tier[0]);
+    } catch (error) {
+      console.error("Failed to create tier:", error);
+      res.status(500).json({ error: "Failed to create tier" });
+    }
+  });
+
+  // Assign tier to customer
+  app.post("/api/customer-tiers/assign", async (req, res) => {
+    try {
+      const schema = insertCustomerTierAssignmentSchema;
+      const data = schema.parse(req.body);
+      
+      const assignment = await dbClient.insert(customerTierAssignments).values(data).returning();
+      res.json(assignment[0]);
+    } catch (error) {
+      console.error("Failed to assign tier:", error);
+      res.status(500).json({ error: "Failed to assign tier" });
+    }
+  });
+
+  // Get customer's tier
+  app.get("/api/customer-tiers/wallet/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      const assignment = await dbClient.select({
+        tier: customerTiers,
+        assignment: customerTierAssignments,
+      })
+      .from(customerTierAssignments)
+      .innerJoin(customerTiers, eq(customerTierAssignments.tierId, customerTiers.id))
+      .where(and(
+        eq(sql`lower(${customerTierAssignments.customerWallet})`, walletAddress.toLowerCase()),
+        or(
+          isNull(customerTierAssignments.expiresAt),
+          gte(customerTierAssignments.expiresAt, new Date())
+        )
+      ))
+      .orderBy(desc(customerTierAssignments.assignedAt))
+      .limit(1);
+      
+      res.json(assignment[0] || null);
+    } catch (error) {
+      console.error("Failed to fetch customer tier:", error);
+      res.status(500).json({ error: "Failed to fetch customer tier" });
+    }
+  });
+
+  // ==================== PRODUCT RECOMMENDATIONS ====================
+  
+  // Get recommendations for product
+  app.get("/api/products/:productId/recommendations", async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const { type } = req.query;
+      
+      const recommendations = await dbClient.select({
+        id: productRecommendations.id,
+        type: productRecommendations.type,
+        score: productRecommendations.score,
+        product: products,
+      })
+      .from(productRecommendations)
+      .innerJoin(products, eq(productRecommendations.recommendedProductId, products.id))
+      .where(and(
+        eq(productRecommendations.productId, productId),
+        eq(productRecommendations.isActive, "true"),
+        type ? eq(productRecommendations.type, type as string) : undefined
+      ))
+      .orderBy(desc(productRecommendations.score));
+      
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Failed to fetch recommendations:", error);
+      res.status(500).json({ error: "Failed to fetch recommendations" });
+    }
+  });
+
+  // Create recommendation
+  app.post("/api/products/:productId/recommendations", async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const schema = insertProductRecommendationSchema;
+      const data = schema.parse(req.body);
+      
+      const recommendation = await dbClient.insert(productRecommendations).values({
+        ...data,
+        productId,
+      }).returning();
+      
+      res.json(recommendation[0]);
+    } catch (error) {
+      console.error("Failed to create recommendation:", error);
+      res.status(500).json({ error: "Failed to create recommendation" });
+    }
+  });
+
+  // ==================== PRE-ORDERS ====================
+  
+  // Create pre-order
+  app.post("/api/pre-orders", async (req, res) => {
+    try {
+      const schema = insertPreOrderSchema;
+      const data = schema.parse(req.body);
+      
+      const preOrder = await dbClient.insert(preOrders).values(data).returning();
+      res.json(preOrder[0]);
+    } catch (error) {
+      console.error("Failed to create pre-order:", error);
+      res.status(500).json({ error: "Failed to create pre-order" });
+    }
+  });
+
+  // Get user's pre-orders
+  app.get("/api/pre-orders/wallet/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      const userPreOrders = await dbClient.select({
+        preOrder: preOrders,
+        product: products,
+      })
+      .from(preOrders)
+      .innerJoin(products, eq(preOrders.productId, products.id))
+      .where(eq(sql`lower(${preOrders.customerWallet})`, walletAddress.toLowerCase()))
+      .orderBy(desc(preOrders.createdAt));
+      
+      res.json(userPreOrders);
+    } catch (error) {
+      console.error("Failed to fetch pre-orders:", error);
+      res.status(500).json({ error: "Failed to fetch pre-orders" });
+    }
+  });
+
+  // Update pre-order status
+  app.patch("/api/pre-orders/:id/status", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      const [preOrder] = await dbClient.update(preOrders)
+        .set({ status })
+        .where(eq(preOrders.id, id))
+        .returning();
+      
+      res.json(preOrder);
+    } catch (error) {
+      console.error("Failed to update pre-order status:", error);
+      res.status(500).json({ error: "Failed to update pre-order status" });
+    }
+  });
+
+  // ==================== RECENTLY VIEWED ====================
+  
+  // Track product view
+  app.post("/api/recently-viewed", async (req, res) => {
+    try {
+      const schema = insertRecentlyViewedSchema;
+      const data = schema.parse(req.body);
+      
+      // Delete old views for this product by this user
+      await dbClient.delete(recentlyViewed)
+        .where(and(
+          eq(sql`lower(${recentlyViewed.customerWallet})`, data.customerWallet.toLowerCase()),
+          eq(recentlyViewed.productId, data.productId)
+        ));
+      
+      // Insert new view
+      const view = await dbClient.insert(recentlyViewed).values(data).returning();
+      res.json(view[0]);
+    } catch (error) {
+      console.error("Failed to track product view:", error);
+      res.status(500).json({ error: "Failed to track product view" });
+    }
+  });
+
+  // Get recently viewed products
+  app.get("/api/recently-viewed/wallet/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const views = await dbClient.select({
+        viewedAt: recentlyViewed.viewedAt,
+        product: products,
+      })
+      .from(recentlyViewed)
+      .innerJoin(products, eq(recentlyViewed.productId, products.id))
+      .where(eq(sql`lower(${recentlyViewed.customerWallet})`, walletAddress.toLowerCase()))
+      .orderBy(desc(recentlyViewed.viewedAt))
+      .limit(limit);
+      
+      res.json(views);
+    } catch (error) {
+      console.error("Failed to fetch recently viewed:", error);
+      res.status(500).json({ error: "Failed to fetch recently viewed" });
+    }
+  });
   
   const httpServer = createServer(app);
   return httpServer;

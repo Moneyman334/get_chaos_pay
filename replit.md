@@ -40,16 +40,35 @@ Automated posting to Twitter/X every 3 hours. Features include multi-account man
 ## Custom Payment System
 A blockchain-native e-commerce payment system offering instant settlement, no chargebacks, lower fees, and multi-chain support (Ethereum, Base, Polygon, Sepolia). It includes product management, a shopping cart, multi-payment options (MetaMask, NOWPayments), blockchain verification, and order management. Security features include server-side amount calculation, on-chain verification, transaction hash uniqueness, customer wallet binding, and chain validation.
 
-## Masterpiece Features (E-commerce Enhancements)
-- **Multi-Currency & Stablecoin Support**: ETH, USDC, DAI, USDT, MATIC across 4 chains, with real-time price conversion API.
-- **Discount Codes System**: Percentage/fixed discounts, usage limits, expiry.
-- **Gift Cards System**: Blockchain-native gift cards with balance tracking and partial redemption.
-- **Loyalty Points System**: Wallet-based loyalty, point earning/redemption, tier system with optional NFT minting.
-- **Product Reviews System**: Blockchain-verified reviews from purchasers.
-- **Wishlist System**: Wallet-based product wishlists.
-- **Invoice & Payment Links**: Shareable payment invoices with multi-currency support.
-- **On-Chain NFT Receipts**: Mint NFTs as proof of purchase for permanent records.
-- **Refund System**: Partial/full refunds with on-chain tracking.
+## Masterpiece E-Commerce Features (20+ Advanced Systems)
+
+### Payment & Commerce Foundation
+- **Multi-Currency & Stablecoin Support**: ETH, USDC, DAI, USDT, MATIC across 4 chains with real-time price conversion API
+- **Discount Codes System**: Percentage/fixed discounts, usage limits, expiry dates, and minimum purchase requirements
+- **Gift Cards System**: Blockchain-native gift cards with balance tracking and partial redemption
+- **Invoice & Payment Links**: Shareable B2B payment invoices with multi-currency support
+- **Refund System**: Partial/full refunds with on-chain tracking and blockchain verification
+
+### Customer Loyalty & Engagement
+- **Loyalty Points System**: Wallet-based loyalty with automatic point earning (1% per transaction), redemption, and tiered rewards (Bronze/Silver/Gold/Platinum)
+- **Customer Tier System**: VIP and wholesale pricing tiers with automatic discount application and exclusive benefits
+- **Product Reviews System**: Blockchain-verified reviews requiring verified purchases
+- **Wishlist System**: Wallet-based product wishlists with persistent storage
+- **Recently Viewed**: Track product browsing history for personalized recommendations
+
+### Advanced Sales & Marketing
+- **Subscription/Recurring Payments**: Automated blockchain-based billing for subscriptions with trial periods, pause/cancel functionality
+- **Affiliate & Referral System**: On-chain commission tracking with unique referral codes, automated payouts, and detailed earnings dashboard
+- **Flash Sales System**: Time-limited offers with countdown timers, limited quantity tracking, and automatic status management
+- **Pre-Order System**: Accept pre-orders with partial deposits, expected release dates, and automatic fulfillment tracking
+- **Product Variants**: Size, color, and attribute variations with independent pricing and inventory management
+- **Product Recommendations**: AI-powered cross-sell, upsell, and related product suggestions with relevance scoring
+
+### Conversion & Analytics
+- **Abandoned Cart Recovery**: 7-day cart persistence with conversion tracking and recovery email capability
+- **On-Chain NFT Receipts**: Mint permanent proof-of-purchase NFTs for high-value transactions
+
+**Total Backend Infrastructure**: 20 database tables, 70+ API endpoints, full TypeScript type safety throughout.
 
 # External Dependencies
 
