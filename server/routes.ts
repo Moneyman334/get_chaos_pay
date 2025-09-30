@@ -1982,6 +1982,209 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ====================
+  // House Vaults Routes
+  // ====================
+  
+  // Get all active house vaults
+  app.get("/api/vaults", async (req, res) => {
+    try {
+      const vaults = await storage.getAllHouseVaults();
+      res.json(vaults);
+    } catch (error) {
+      console.error("Failed to fetch vaults:", error);
+      res.status(500).json({ error: "Failed to fetch vaults" });
+    }
+  });
+  
+  // Get specific vault details
+  app.get("/api/vaults/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const vault = await storage.getHouseVault(id);
+      
+      if (!vault) {
+        return res.status(404).json({ error: "Vault not found" });
+      }
+      
+      res.json(vault);
+    } catch (error) {
+      console.error("Failed to fetch vault:", error);
+      res.status(500).json({ error: "Failed to fetch vault" });
+    }
+  });
+  
+  // Get user's positions in all vaults
+  app.get("/api/vaults/positions/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const positions = await storage.getUserPositions(walletAddress);
+      res.json(positions);
+    } catch (error) {
+      console.error("Failed to fetch user positions:", error);
+      res.status(500).json({ error: "Failed to fetch user positions" });
+    }
+  });
+  
+  // Get positions in a specific vault
+  app.get("/api/vaults/:vaultId/positions", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const positions = await storage.getVaultPositions(vaultId);
+      res.json(positions);
+    } catch (error) {
+      console.error("Failed to fetch vault positions:", error);
+      res.status(500).json({ error: "Failed to fetch vault positions" });
+    }
+  });
+  
+  // Stake ETH in a vault (create position)
+  app.post("/api/vaults/:vaultId/stake", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const stakeSchema = z.object({
+        walletAddress: z.string(),
+        stakedAmount: z.string(),
+        shares: z.string(),
+        entryPrice: z.string(),
+        userId: z.string().optional()
+      });
+      
+      const data = stakeSchema.parse(req.body);
+      
+      // Verify vault exists
+      const vault = await storage.getHouseVault(vaultId);
+      if (!vault) {
+        return res.status(404).json({ error: "Vault not found" });
+      }
+      
+      // Calculate unlock date if there's a lock period
+      const unlocksAt = vault.lockPeriod && vault.lockPeriod !== '0' 
+        ? new Date(Date.now() + parseInt(vault.lockPeriod) * 24 * 60 * 60 * 1000)
+        : undefined;
+      
+      const position = await storage.createPosition({
+        vaultId,
+        walletAddress: data.walletAddress,
+        userId: data.userId,
+        stakedAmount: data.stakedAmount,
+        shares: data.shares,
+        entryPrice: data.entryPrice,
+        currentValue: data.stakedAmount,
+        totalEarnings: '0',
+        claimedEarnings: '0',
+        pendingEarnings: '0',
+        status: 'active',
+        unlocksAt
+      });
+      
+      // Update vault stats
+      const newTotalStaked = (parseFloat(vault.totalStaked) + parseFloat(data.stakedAmount)).toString();
+      const newActivePositions = (parseInt(vault.activePositions) + 1).toString();
+      
+      await storage.updateHouseVault(vaultId, {
+        totalStaked: newTotalStaked,
+        activePositions: newActivePositions
+      });
+      
+      res.status(201).json(position);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid stake data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to create position:", error);
+      res.status(500).json({ error: "Failed to create position" });
+    }
+  });
+  
+  // Unstake from vault (withdraw position)
+  app.post("/api/vaults/positions/:positionId/unstake", async (req, res) => {
+    try {
+      const { positionId } = req.params;
+      
+      const position = await storage.getPosition(positionId);
+      if (!position) {
+        return res.status(404).json({ error: "Position not found" });
+      }
+      
+      // Check if position is locked
+      if (position.unlocksAt && new Date() < new Date(position.unlocksAt)) {
+        return res.status(403).json({ 
+          error: "Position is locked", 
+          unlocksAt: position.unlocksAt 
+        });
+      }
+      
+      // Update position status
+      await storage.updatePosition(positionId, {
+        status: 'withdrawn',
+        withdrawnAt: new Date()
+      });
+      
+      // Update vault stats
+      const vault = await storage.getHouseVault(position.vaultId);
+      if (vault) {
+        const newTotalStaked = Math.max(0, parseFloat(vault.totalStaked) - parseFloat(position.stakedAmount)).toString();
+        const newActivePositions = Math.max(0, parseInt(vault.activePositions) - 1).toString();
+        
+        await storage.updateHouseVault(position.vaultId, {
+          totalStaked: newTotalStaked,
+          activePositions: newActivePositions
+        });
+      }
+      
+      res.json({ success: true, message: "Position withdrawn successfully" });
+    } catch (error) {
+      console.error("Failed to unstake:", error);
+      res.status(500).json({ error: "Failed to unstake" });
+    }
+  });
+  
+  // Get vault distributions (profit history)
+  app.get("/api/vaults/:vaultId/distributions", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const distributions = await storage.getVaultDistributions(vaultId, limit);
+      res.json(distributions);
+    } catch (error) {
+      console.error("Failed to fetch distributions:", error);
+      res.status(500).json({ error: "Failed to fetch distributions" });
+    }
+  });
+  
+  // Get user's earnings
+  app.get("/api/vaults/earnings/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const earnings = await storage.getUserEarnings(walletAddress);
+      res.json(earnings);
+    } catch (error) {
+      console.error("Failed to fetch earnings:", error);
+      res.status(500).json({ error: "Failed to fetch earnings" });
+    }
+  });
+  
+  // Claim earnings
+  app.post("/api/vaults/earnings/:earningId/claim", async (req, res) => {
+    try {
+      const { earningId } = req.params;
+      const claimed = await storage.claimEarning(earningId);
+      
+      if (!claimed) {
+        return res.status(404).json({ error: "Earning not found" });
+      }
+      
+      res.json({ success: true, earning: claimed });
+    } catch (error) {
+      console.error("Failed to claim earning:", error);
+      res.status(500).json({ error: "Failed to claim earning" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -45,7 +45,19 @@ import {
   botSubscriptions,
   botUserConfigs,
   botActiveStrategies,
-  botTrades
+  botTrades,
+  houseVaults,
+  housePositions,
+  houseDistributions,
+  houseEarnings,
+  type HouseVault,
+  type InsertHouseVault,
+  type HousePosition,
+  type InsertHousePosition,
+  type HouseDistribution,
+  type InsertHouseDistribution,
+  type HouseEarning,
+  type InsertHouseEarning
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -204,6 +216,29 @@ export interface IStorage {
   // Bot Trade methods
   getUserBotTrades(userId: string, limit: number): Promise<any[]>;
   getStrategyTrades(activeStrategyId: string): Promise<any[]>;
+  
+  // House Vault methods
+  getAllHouseVaults(): Promise<HouseVault[]>;
+  getHouseVault(id: string): Promise<HouseVault | undefined>;
+  createHouseVault(vault: InsertHouseVault): Promise<HouseVault>;
+  updateHouseVault(id: string, updates: Partial<InsertHouseVault>): Promise<HouseVault | undefined>;
+  
+  // House Position methods
+  getUserPositions(walletAddress: string): Promise<HousePosition[]>;
+  getVaultPositions(vaultId: string): Promise<HousePosition[]>;
+  getPosition(id: string): Promise<HousePosition | undefined>;
+  createPosition(position: InsertHousePosition): Promise<HousePosition>;
+  updatePosition(id: string, updates: Partial<InsertHousePosition>): Promise<HousePosition | undefined>;
+  
+  // House Distribution methods
+  getVaultDistributions(vaultId: string, limit?: number): Promise<HouseDistribution[]>;
+  createDistribution(distribution: InsertHouseDistribution): Promise<HouseDistribution>;
+  
+  // House Earning methods
+  getPositionEarnings(positionId: string): Promise<HouseEarning[]>;
+  getUserEarnings(walletAddress: string): Promise<HouseEarning[]>;
+  createEarning(earning: InsertHouseEarning): Promise<HouseEarning>;
+  claimEarning(id: string): Promise<HouseEarning | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -1755,6 +1790,105 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(botTrades.activeStrategyId, activeStrategyId))
       .orderBy(desc(botTrades.createdAt));
     return trades;
+  }
+  
+  // House Vault methods
+  async getAllHouseVaults() {
+    const vaults = await db.select().from(houseVaults).where(eq(houseVaults.status, 'active'));
+    return vaults;
+  }
+  
+  async getHouseVault(id: string) {
+    const [vault] = await db.select().from(houseVaults).where(eq(houseVaults.id, id));
+    return vault;
+  }
+  
+  async createHouseVault(vault: InsertHouseVault) {
+    const [created] = await db.insert(houseVaults).values(vault).returning();
+    return created;
+  }
+  
+  async updateHouseVault(id: string, updates: Partial<InsertHouseVault>) {
+    const [updated] = await db.update(houseVaults)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(houseVaults.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // House Position methods
+  async getUserPositions(walletAddress: string) {
+    const positions = await db.select().from(housePositions)
+      .where(eq(sql`lower(${housePositions.walletAddress})`, normalizeAddress(walletAddress)))
+      .orderBy(desc(housePositions.stakedAt));
+    return positions;
+  }
+  
+  async getVaultPositions(vaultId: string) {
+    const positions = await db.select().from(housePositions)
+      .where(eq(housePositions.vaultId, vaultId))
+      .orderBy(desc(housePositions.stakedAt));
+    return positions;
+  }
+  
+  async getPosition(id: string) {
+    const [position] = await db.select().from(housePositions).where(eq(housePositions.id, id));
+    return position;
+  }
+  
+  async createPosition(position: InsertHousePosition) {
+    const [created] = await db.insert(housePositions).values(position).returning();
+    return created;
+  }
+  
+  async updatePosition(id: string, updates: Partial<InsertHousePosition>) {
+    const [updated] = await db.update(housePositions)
+      .set(updates)
+      .where(eq(housePositions.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // House Distribution methods
+  async getVaultDistributions(vaultId: string, limit: number = 50) {
+    const distributions = await db.select().from(houseDistributions)
+      .where(eq(houseDistributions.vaultId, vaultId))
+      .orderBy(desc(houseDistributions.distributedAt))
+      .limit(limit);
+    return distributions;
+  }
+  
+  async createDistribution(distribution: InsertHouseDistribution) {
+    const [created] = await db.insert(houseDistributions).values(distribution).returning();
+    return created;
+  }
+  
+  // House Earning methods
+  async getPositionEarnings(positionId: string) {
+    const earnings = await db.select().from(houseEarnings)
+      .where(eq(houseEarnings.positionId, positionId))
+      .orderBy(desc(houseEarnings.createdAt));
+    return earnings;
+  }
+  
+  async getUserEarnings(walletAddress: string) {
+    const earnings = await db.select().from(houseEarnings)
+      .where(eq(sql`lower(${houseEarnings.walletAddress})`, normalizeAddress(walletAddress)))
+      .orderBy(desc(houseEarnings.createdAt));
+    return earnings;
+  }
+  
+  async createEarning(earning: InsertHouseEarning) {
+    const [created] = await db.insert(houseEarnings).values(earning).returning();
+    return created;
+  }
+  
+  async claimEarning(id: string) {
+    const [updated] = await db.update(houseEarnings)
+      .set({ status: 'claimed', claimedAt: new Date() })
+      .where(eq(houseEarnings.id, id))
+      .returning();
+    return updated;
   }
 }
 
