@@ -38,6 +38,8 @@ import WishlistPage from "@/pages/wishlist";
 import CustomerDashboardPage from "@/pages/customer-dashboard";
 import ReviewsPage from "@/pages/reviews";
 import InvoicesPage from "@/pages/invoices";
+import AnalyticsPage from "@/pages/analytics";
+import PortfolioPage from "@/pages/portfolio";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -79,6 +81,8 @@ function Router() {
       <Route path="/dashboard" component={CustomerDashboardPage} />
       <Route path="/reviews" component={ReviewsPage} />
       <Route path="/invoices" component={InvoicesPage} />
+      <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/portfolio" component={PortfolioPage} />
       <Route component={NotFound} />
     </Switch>
   );
