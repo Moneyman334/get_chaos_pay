@@ -9,7 +9,7 @@ This is a comprehensive Web3 blockchain empire platform built with React and Exp
 - **Sentinel Auto Trading Bot**: Revolutionary AI-powered automated crypto trading with 5 strategies, 3 pricing tiers, and Coinbase Pro integration
 - **Transaction Management**: Send transactions, track history, and monitor network information
 
-The platform features a modern UI built with shadcn/ui components and Tailwind CSS, with a PostgreSQL database backend for storing transaction data. Deployed at chaoskey333casino.com with production-ready smart contract generators and automated trading capabilities.
+The platform features a **state-of-the-art futuristic UI** with cutting-edge visual design including glass morphism effects, neon gradients (purple, cyan, pink), animated backgrounds, floating animations, glow effects, and smooth micro-interactions. Built with shadcn/ui components and Tailwind CSS, with a PostgreSQL database backend for storing transaction data. Deployed at chaoskey333casino.com with production-ready smart contract generators and automated trading capabilities.
 
 # User Preferences
 
