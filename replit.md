@@ -16,7 +16,7 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 ### Frontend
 - **Technology Stack**: React 18, TypeScript, Vite, Wouter (lightweight routing), TanStack Query v5 (server state management), shadcn/ui, Radix UI, Tailwind CSS, Lucide React, Framer Motion.
 - **State Management**: Three-layer architecture combining TanStack Query for server state, Context/Hooks for global client state (e.g., authentication, theme), and `useState` for local component state.
-- **Web3 Integration**: A `useWeb3` hook handles MetaMask integration, wallet connection, network switching, and account/balance monitoring.
+- **Web3 Integration**: A `useWeb3` hook handles MetaMask integration, wallet connection, network switching, and account/balance monitoring. Includes mobile resume handler for automatic wallet reconnection when app returns to foreground after screen lock.
 - **Form Handling**: Utilizes React Hook Form with Zod for client-side validation and strongly typed form submissions.
 - **Performance**: Implements code splitting, lazy loading, memoization, virtual scrolling, and image optimization.
 - **Error Handling & Resilience**:
