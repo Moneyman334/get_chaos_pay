@@ -27,13 +27,13 @@ export default function EmpireDashboard() {
   const { account, balance, isConnected } = useWeb3();
   
   // Fetch House Vaults data
-  const { data: vaults } = useQuery({
+  const { data: vaults } = useQuery<any[]>({
     queryKey: ["/api/vaults"],
     enabled: true
   });
 
   // Fetch user positions (only if connected)
-  const { data: userPositions } = useQuery({
+  const { data: userPositions } = useQuery<any[]>({
     queryKey: ["/api/vaults/positions", account],
     enabled: isConnected && !!account
   });
@@ -290,19 +290,19 @@ export default function EmpireDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 border border-green-500/20 rounded-lg bg-background/50">
               <div className="text-2xl font-bold text-green-500">
-                {Number(vaults?.reduce((sum: number, v: any) => sum + parseFloat(v.totalStaked || '0'), 0) ?? 0).toFixed(2)} ETH
+                {Number((vaults || []).reduce((sum: number, v: any) => sum + parseFloat(v.totalStaked || '0'), 0)).toFixed(2)} ETH
               </div>
               <div className="text-xs text-muted-foreground">Total Locked</div>
             </div>
             <div className="text-center p-3 border border-blue-500/20 rounded-lg bg-background/50">
               <div className="text-2xl font-bold text-blue-500">
-                {vaults?.reduce((sum: number, v: any) => sum + parseInt(v.activePositions || '0'), 0) ?? 0}
+                {(vaults || []).reduce((sum: number, v: any) => sum + parseInt(v.activePositions || '0'), 0)}
               </div>
               <div className="text-xs text-muted-foreground">Active Stakers</div>
             </div>
             <div className="text-center p-3 border border-purple-500/20 rounded-lg bg-background/50">
               <div className="text-2xl font-bold text-purple-500">
-                {Number(vaults?.reduce((sum: number, v: any) => sum + parseFloat(v.totalEarnings || '0'), 0) ?? 0).toFixed(2)} ETH
+                {Number((vaults || []).reduce((sum: number, v: any) => sum + parseFloat(v.totalEarnings || '0'), 0)).toFixed(2)} ETH
               </div>
               <div className="text-xs text-muted-foreground">Total Distributed</div>
             </div>
@@ -316,7 +316,7 @@ export default function EmpireDashboard() {
 
           {/* Featured Vaults */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {vaults?.slice(0, 3).map((vault: any) => (
+            {(vaults || []).slice(0, 3).map((vault: any) => (
               <div key={vault.id} className="border rounded-lg p-4 bg-background/50 hover:border-green-500/50 transition-all" data-testid={`vault-preview-${vault.tier}`}>
                 <div className="flex items-center justify-between mb-2">
                   <Badge className={vault.tier === 'elite' ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-black' : vault.tier === 'premium' ? 'bg-gradient-to-r from-purple-500 to-pink-500' : 'bg-gradient-to-r from-blue-500 to-cyan-500'}>
