@@ -42,7 +42,7 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 - **Blockchain-Native Payment System**: Instant settlement, no chargebacks, lower fees, multi-chain support (Ethereum, Base, Polygon, Sepolia). Includes product management, shopping cart, multi-payment options, blockchain verification, and order management.
 - **Advanced E-commerce Features**: Multi-currency & stablecoin support, discount codes, gift cards, invoice/payment links, refund system, wallet-based loyalty points, customer tier system, blockchain-verified product reviews, wishlist, recently viewed products, subscription/recurring payments, affiliate/referral system, flash sales, pre-order system, product variants, AI-powered product recommendations, abandoned cart recovery, and on-chain NFT receipts.
 
-### Comprehensive Frontend Pages (18 Total)
+### Comprehensive Frontend Pages (23 Total)
 1. **Products Catalog** (/products) - Advanced filtering, search, grid/list view, price range filtering, category selection, featured products, stock indicators
 2. **Wishlist** (/wishlist) - Save products, remove items, wallet-based persistence, quick add to cart, stock monitoring
 3. **Customer Dashboard** (/dashboard) - Unified view of loyalty points, tier status, subscriptions, recent orders, account stats, spending analytics
@@ -61,6 +61,11 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 16. **Token Swap/DEX** (/swap) - Built-in decentralized exchange for swapping cryptocurrencies (ETH, USDC, USDT, DAI, WBTC), rate calculations, slippage tolerance settings, fee estimates, price impact display, popular trading pairs, wallet-integrated swap execution
 17. **NFT Gallery** (/nft-gallery) - Multi-chain NFT collection showcase with grid/list views, search and chain filtering, collection grouping, stats dashboard (total NFTs, collections, value, chains), detailed NFT modal with attributes, rarity, sale history, OpenSea integration
 18. **DAO Governance** (/dao) - Decentralized autonomous organization with proposal creation, voting system (for/against/abstain), quorum tracking, voting power management, treasury balance display, proposal execution, time-limited voting periods, vote percentage calculations, active/passed/all proposal tabs
+19. **P2P Lending Platform** (/lending) - Decentralized peer-to-peer lending with loan requests, collateral management, interest rate bidding, lending pools, automatic matching, repayment tracking, risk assessment, default handling, lender/borrower dashboards
+20. **Prediction Markets** (/prediction-markets) - Bet on future events with liquidity pools, YES/NO markets, odds calculation, position tracking, market resolution, winnings claiming, categories (crypto, sports, politics), live odds updates, profit/loss tracking
+21. **Yield Farming Dashboard** (/yield-farming) - Stake LP tokens for high-yield rewards, multiple farm pools with varying APYs, auto-compound strategies, harvest rewards, deposit/withdraw management, TVL tracking, APY calculators, lock periods, multipliers, vesting schedules
+22. **Social Trading Platform** (/social-trading) - Copy successful traders automatically, trader leaderboards, performance metrics (total return, win rate), risk levels, follower counts, copy allocations, automatic trade replication, P&L tracking, trader profiles, strategies showcase
+23. **Token Launchpad** (/token-launchpad) - Invest in new token launches (ICOs/IDOs), fair token distribution, vesting schedules, hard/soft caps, fundraising progress, token allocation, TGE (Token Generation Event), claim schedules, project categories, investment tracking, upcoming/active launches
 
 # External Dependencies
 

@@ -396,7 +396,7 @@ export default function YieldFarmingPage() {
                     <Sprout className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
                     <h3 className="text-xl font-semibold mb-2">No Active Positions</h3>
                     <p className="text-muted-foreground mb-6">Deposit tokens to start earning rewards</p>
-                    <Button onClick={() => document.querySelector('[value="pools"]')?.click()}>
+                    <Button onClick={() => (document.querySelector('[value="pools"]') as HTMLElement)?.click()}>
                       View Farm Pools
                     </Button>
                   </CardContent>

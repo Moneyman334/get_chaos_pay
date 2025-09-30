@@ -561,7 +561,7 @@ export default function TokenLaunchpadPage() {
                     <Target className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
                     <h3 className="text-xl font-semibold mb-2">No Investments Yet</h3>
                     <p className="text-muted-foreground mb-6">Start investing in promising projects</p>
-                    <Button onClick={() => document.querySelector('[value="active"]')?.click()}>
+                    <Button onClick={() => (document.querySelector('[value="active"]') as HTMLElement)?.click()}>
                       View Active Launches
                     </Button>
                   </CardContent>

@@ -414,7 +414,7 @@ export default function SocialTradingPage() {
                     <Copy className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-20" />
                     <h3 className="text-xl font-semibold mb-2">No Active Copies</h3>
                     <p className="text-muted-foreground mb-6">Start copying traders to grow your portfolio</p>
-                    <Button onClick={() => document.querySelector('[value="traders"]')?.click()}>
+                    <Button onClick={() => (document.querySelector('[value="traders"]') as HTMLElement)?.click()}>
                       Browse Traders
                     </Button>
                   </CardContent>
