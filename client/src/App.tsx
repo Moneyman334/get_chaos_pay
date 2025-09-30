@@ -27,6 +27,7 @@ import HouseVaultsPage from "@/pages/house-vaults";
 import AutoCompoundPage from "@/pages/auto-compound";
 import SocialAutomationPage from "@/pages/social-automation";
 import AdminDiscountsPage from "@/pages/admin-discounts";
+import AdminFlashSalesPage from "@/pages/admin-flash-sales";
 import SubscriptionsPage from "@/pages/subscriptions";
 import AffiliateDashboardPage from "@/pages/affiliate-dashboard";
 import GiftCardsPage from "@/pages/gift-cards";
@@ -35,6 +36,8 @@ import CartRecoveryPage from "@/pages/cart-recovery";
 import ProductsPage from "@/pages/products";
 import WishlistPage from "@/pages/wishlist";
 import CustomerDashboardPage from "@/pages/customer-dashboard";
+import ReviewsPage from "@/pages/reviews";
+import InvoicesPage from "@/pages/invoices";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -65,6 +68,7 @@ function Router() {
       <Route path="/play" component={GamePlayPage} />
       <Route path="/social-automation" component={SocialAutomationPage} />
       <Route path="/admin/discounts" component={AdminDiscountsPage} />
+      <Route path="/admin/flash-sales" component={AdminFlashSalesPage} />
       <Route path="/subscriptions" component={SubscriptionsPage} />
       <Route path="/affiliate" component={AffiliateDashboardPage} />
       <Route path="/gift-cards" component={GiftCardsPage} />
@@ -73,6 +77,8 @@ function Router() {
       <Route path="/products" component={ProductsPage} />
       <Route path="/wishlist" component={WishlistPage} />
       <Route path="/dashboard" component={CustomerDashboardPage} />
+      <Route path="/reviews" component={ReviewsPage} />
+      <Route path="/invoices" component={InvoicesPage} />
       <Route component={NotFound} />
     </Switch>
   );

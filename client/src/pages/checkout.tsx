@@ -24,6 +24,12 @@ export default function CheckoutPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'metamask' | 'nowpayments' | 'stripe'>('metamask');
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [currentPayment, setCurrentPayment] = useState<Payment | null>(null);
+  const [discountCode, setDiscountCode] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [appliedGiftCard, setAppliedGiftCard] = useState<any>(null);
+  const [isApplyingDiscount, setIsApplyingDiscount] = useState(false);
+  const [isApplyingGiftCard, setIsApplyingGiftCard] = useState(false);
   
   const { toast } = useToast();
   const { account, sendTransaction, chainId } = useWeb3();
@@ -48,9 +54,10 @@ export default function CheckoutPage() {
     mutationFn: async () => {
       if (cart.length === 0) throw new Error("Cart is empty");
       
-      const totalAmount = cart.reduce((sum, item) => 
-        sum + parseFloat(item.product.price) * item.quantity, 0
-      ).toFixed(2);
+      const subtotal = getSubtotal();
+      const discountAmount = getDiscountAmount();
+      const giftCardAmount = appliedGiftCard ? Math.min(parseFloat(appliedGiftCard.currentBalance), subtotal - discountAmount) : 0;
+      const totalAmount = Math.max(0, subtotal - discountAmount - giftCardAmount).toFixed(2);
 
       const res = await apiRequest("POST", "/api/orders/create", {
         customerEmail: customerEmail || undefined,
@@ -63,7 +70,9 @@ export default function CheckoutPage() {
         })),
         totalAmount,
         currency: 'USD',
-        chainId: chainId ? parseInt(chainId, 16) : undefined
+        chainId: chainId ? parseInt(chainId, 16) : undefined,
+        discountCode: appliedDiscount?.code,
+        giftCardCode: appliedGiftCard?.code,
       });
       
       return await res.json() as Order;
@@ -210,10 +219,117 @@ export default function CheckoutPage() {
     ));
   };
 
-  const getTotalAmount = () => {
+  const getSubtotal = () => {
     return cart.reduce((sum, item) => 
       sum + parseFloat(item.product.price) * item.quantity, 0
-    ).toFixed(2);
+    );
+  };
+
+  const getDiscountAmount = () => {
+    if (!appliedDiscount) return 0;
+    const subtotal = getSubtotal();
+    
+    if (appliedDiscount.discountType === 'percentage') {
+      return subtotal * (parseFloat(appliedDiscount.discountValue) / 100);
+    } else {
+      return Math.min(parseFloat(appliedDiscount.discountValue), subtotal);
+    }
+  };
+
+  const getTotalAmount = () => {
+    const subtotal = getSubtotal();
+    const discountAmount = getDiscountAmount();
+    const giftCardAmount = appliedGiftCard ? Math.min(parseFloat(appliedGiftCard.currentBalance), subtotal - discountAmount) : 0;
+    
+    return Math.max(0, subtotal - discountAmount - giftCardAmount).toFixed(2);
+  };
+
+  const applyDiscount = async () => {
+    if (!discountCode.trim()) {
+      toast({
+        title: "Enter Code",
+        description: "Please enter a discount code",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsApplyingDiscount(true);
+    try {
+      const res = await apiRequest('POST', '/api/discounts/validate', {
+        code: discountCode
+      });
+      const discount = await res.json();
+      
+      setAppliedDiscount(discount);
+      toast({
+        title: "Discount Applied!",
+        description: `${discount.code}: ${discount.discountType === 'percentage' ? discount.discountValue + '%' : '$' + discount.discountValue} off`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Invalid Code",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsApplyingDiscount(false);
+    }
+  };
+
+  const removeDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode("");
+    toast({
+      title: "Discount Removed",
+      description: "Discount code has been removed from your order",
+    });
+  };
+
+  const applyGiftCard = async () => {
+    if (!giftCardCode.trim()) {
+      toast({
+        title: "Enter Code",
+        description: "Please enter a gift card code",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsApplyingGiftCard(true);
+    try {
+      const res = await apiRequest('POST', '/api/giftcards/validate', {
+        code: giftCardCode
+      });
+      const giftCard = await res.json();
+      
+      if (parseFloat(giftCard.currentBalance) <= 0) {
+        throw new Error("Gift card has no remaining balance");
+      }
+      
+      setAppliedGiftCard(giftCard);
+      toast({
+        title: "Gift Card Applied!",
+        description: `${giftCard.code}: $${giftCard.currentBalance} available`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Invalid Gift Card",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsApplyingGiftCard(false);
+    }
+  };
+
+  const removeGiftCard = () => {
+    setAppliedGiftCard(null);
+    setGiftCardCode("");
+    toast({
+      title: "Gift Card Removed",
+      description: "Gift card has been removed from your order",
+    });
   };
 
   const handleCheckout = () => {
@@ -706,10 +822,117 @@ export default function CheckoutPage() {
                   <Separator />
                   
                   <div className="space-y-4">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total:</span>
-                      <span data-testid="text-total">${getTotalAmount()}</span>
+                    {/* Order Summary */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span>${getSubtotal().toFixed(2)}</span>
+                      </div>
+                      
+                      {appliedDiscount && (
+                        <div className="flex justify-between text-sm text-green-600">
+                          <span>Discount ({appliedDiscount.code}):</span>
+                          <span>-${getDiscountAmount().toFixed(2)}</span>
+                        </div>
+                      )}
+                      
+                      {appliedGiftCard && (
+                        <div className="flex justify-between text-sm text-blue-600">
+                          <span>Gift Card ({appliedGiftCard.code}):</span>
+                          <span>-${Math.min(parseFloat(appliedGiftCard.currentBalance), getSubtotal() - getDiscountAmount()).toFixed(2)}</span>
+                        </div>
+                      )}
+                      
+                      <Separator />
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total:</span>
+                        <span data-testid="text-total">${getTotalAmount()}</span>
+                      </div>
                     </div>
+
+                    {/* Discount Code */}
+                    {!appliedDiscount ? (
+                      <div className="space-y-2">
+                        <Label>Discount Code</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Enter code"
+                            value={discountCode}
+                            onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => e.key === 'Enter' && applyDiscount()}
+                            data-testid="input-discount-code"
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={applyDiscount}
+                            disabled={isApplyingDiscount}
+                            data-testid="button-apply-discount"
+                          >
+                            {isApplyingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Card className="bg-green-500/10 border-green-500/50">
+                        <CardContent className="pt-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-green-700">Discount Applied</p>
+                              <p className="text-xs text-muted-foreground">
+                                {appliedDiscount.code}: {appliedDiscount.discountType === 'percentage' 
+                                  ? appliedDiscount.discountValue + '% off' 
+                                  : '$' + appliedDiscount.discountValue + ' off'}
+                              </p>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={removeDiscount} data-testid="button-remove-discount">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Gift Card */}
+                    {!appliedGiftCard ? (
+                      <div className="space-y-2">
+                        <Label>Gift Card</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Enter gift card code"
+                            value={giftCardCode}
+                            onChange={(e) => setGiftCardCode(e.target.value.toUpperCase())}
+                            onKeyDown={(e) => e.key === 'Enter' && applyGiftCard()}
+                            data-testid="input-gift-card-code"
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={applyGiftCard}
+                            disabled={isApplyingGiftCard}
+                            data-testid="button-apply-gift-card"
+                          >
+                            {isApplyingGiftCard ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Card className="bg-blue-500/10 border-blue-500/50">
+                        <CardContent className="pt-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-blue-700">Gift Card Applied</p>
+                              <p className="text-xs text-muted-foreground">
+                                {appliedGiftCard.code}: ${appliedGiftCard.currentBalance} available
+                              </p>
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={removeGiftCard} data-testid="button-remove-gift-card">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    <Separator />
                     
                     <div className="space-y-2">
                       <Label>Email (Optional)</Label>
