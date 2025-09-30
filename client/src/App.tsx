@@ -32,6 +32,9 @@ import AffiliateDashboardPage from "@/pages/affiliate-dashboard";
 import GiftCardsPage from "@/pages/gift-cards";
 import LoyaltyPage from "@/pages/loyalty";
 import CartRecoveryPage from "@/pages/cart-recovery";
+import ProductsPage from "@/pages/products";
+import WishlistPage from "@/pages/wishlist";
+import CustomerDashboardPage from "@/pages/customer-dashboard";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -67,6 +70,9 @@ function Router() {
       <Route path="/gift-cards" component={GiftCardsPage} />
       <Route path="/loyalty" component={LoyaltyPage} />
       <Route path="/cart-recovery" component={CartRecoveryPage} />
+      <Route path="/products" component={ProductsPage} />
+      <Route path="/wishlist" component={WishlistPage} />
+      <Route path="/dashboard" component={CustomerDashboardPage} />
       <Route component={NotFound} />
     </Switch>
   );
