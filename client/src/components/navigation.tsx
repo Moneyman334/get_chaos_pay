@@ -104,7 +104,7 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
 
   const NavLinks = ({ mobile = false }) => (
     <div className={`${mobile ? 'flex flex-col space-y-4' : 'flex items-center space-x-8'}`}>
-      {navigationItems.map(({ path, label, icon: Icon }) => (
+      {navigationItems.map(({ path, label, icon: Icon, featured }) => (
         <Link 
           key={path}
           href={path}
@@ -112,14 +112,17 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
           data-testid={`nav-link-${label.toLowerCase()}`}
         >
           <div className={`
-            flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200
+            flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-300
             ${isActivePath(path) 
-              ? 'bg-primary text-primary-foreground font-medium' 
-              : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+              ? featured 
+                ? 'bg-gradient-to-r from-primary to-accent text-white font-medium shadow-lg shadow-primary/30' 
+                : 'bg-primary/20 text-primary font-medium border border-primary/50' 
+              : 'hover:bg-primary/10 text-muted-foreground hover:text-foreground hover:border-primary/30 border border-transparent'
             }
             ${mobile ? 'text-lg' : 'text-sm'}
+            ${featured && !isActivePath(path) ? 'hover:shadow-lg hover:shadow-primary/20' : ''}
           `}>
-            <Icon className={`${mobile ? 'h-5 w-5' : 'h-4 w-4'}`} />
+            <Icon className={`${mobile ? 'h-5 w-5' : 'h-4 w-4'} ${isActivePath(path) && featured ? 'drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]' : ''}`} />
             <span>{label}</span>
           </div>
         </Link>
@@ -128,17 +131,17 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
   );
 
   return (
-    <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+    <header className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-50 shadow-lg shadow-primary/5">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo/Brand */}
           <Link href="/" data-testid="nav-brand">
-            <div className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
-                <Coins className="text-primary-foreground h-5 w-5" />
+            <div className="flex items-center space-x-3 hover:scale-105 transition-all duration-300">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary via-purple-500 to-accent rounded-xl flex items-center justify-center glow-primary animate-float">
+                <Coins className="text-white h-5 w-5" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-primary via-purple-500 to-accent bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(168,85,247,0.3)]">
                   Crypto Casino
                 </h1>
                 <p className="text-xs text-muted-foreground -mt-1">
