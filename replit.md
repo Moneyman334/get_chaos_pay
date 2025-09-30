@@ -39,6 +39,39 @@ This system provides an automated trading bot for Coinbase Pro with a backend tr
 ## House Vaults System
 A player-owned liquidity system allowing users to stake ETH and earn profits from casino games. It features three vault tiers with varying APY (15-25%), flexible lock periods (no lock, 7-day, 30-day), and risk-based returns. The system includes database tables for vaults, positions, distributions, and earnings, with a full-stack, production-ready implementation, integrated into the Empire Dashboard.
 
+## Social Media Automation System
+A comprehensive automated social media posting system that posts to Twitter/X every 3 hours at scheduled intervals (00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00). The system includes:
+
+### Features:
+- **Multi-Account Management**: Connect and manage multiple Twitter/X accounts with secure credential storage
+- **Automated Posting**: Posts are automatically published at 3-hour intervals via node-cron scheduler
+- **Flexible Scheduling**: Schedule posts for future publishing (timestamps stored in UTC)
+- **Post History**: Complete audit trail of all published posts with timestamps and URLs
+- **Real-time Monitoring**: Track post status (pending, published, failed) with error logging
+
+### Database Schema:
+- `social_accounts`: Stores social media account credentials (platform, accountName, API keys, tokens)
+- `scheduled_posts`: Stores posts scheduled for future publishing with status tracking
+- `post_history`: Tracks all published posts with external URLs and post IDs
+
+### API Integration:
+- Twitter API v2 integration using twitter-api-v2 SDK
+- OAuth 1.0a authentication with app key/secret and access token/secret
+- Error handling and logging for failed posts with status tracking
+
+### Security:
+- Credential redaction in API response logs (masks apiKey, apiSecret, accessToken, accessTokenSecret)
+- Secure credential storage in PostgreSQL database
+- No credentials exposed in browser or client-side code
+
+### Scheduler Architecture:
+- Primary scheduler: Posts every 3 hours on the hour (cron: `0 */3 * * *`)
+- Secondary checker: Scans every 5 minutes for due posts (cron: `*/5 * * * *`)
+- Concurrency guard prevents duplicate posting
+- Post URLs constructed using actual account username and tweet ID
+
+**Production-Ready Status**: Fully operational with PostgreSQL persistence. Users must configure Twitter API credentials (Consumer Key/Secret and Access Token/Secret) for live posting.
+
 # External Dependencies
 
 ## Core Dependencies
@@ -66,5 +99,7 @@ A player-owned liquidity system allowing users to stake ETH and earn profits fro
 - Zod
 - date-fns
 - Wouter
+- node-cron
 - NOWPayments API (for universal payments)
 - Coinbase Pro SDK (for Sentinel Auto Trading Bot - **Note: Requires migration to Coinbase Advanced Trade API for production**)
+- Twitter API v2 SDK (twitter-api-v2) (for Social Media Automation)
