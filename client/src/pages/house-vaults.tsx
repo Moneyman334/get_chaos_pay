@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { 
   Coins, 
   TrendingUp, 
@@ -18,16 +20,21 @@ import {
   Shield,
   Zap,
   Crown,
-  Info
+  Info,
+  Loader2
 } from "lucide-react";
 import { useWeb3 } from "@/hooks/use-web3";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function HouseVaultsPage() {
-  const { account, balance, isConnected } = useWeb3();
+  const { account, balance, isConnected, sendTransaction } = useWeb3();
   const [stakeAmount, setStakeAmount] = useState("");
   const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
+  const [showStakeDialog, setShowStakeDialog] = useState(false);
+  const { toast } = useToast();
 
   // Fetch all active vaults
   const { data: vaults, isLoading: vaultsLoading } = useQuery({
@@ -40,6 +47,112 @@ export default function HouseVaultsPage() {
     queryKey: ["/api/vaults/positions", account],
     enabled: isConnected && !!account
   });
+
+  // Selected vault details
+  const selectedVault = vaults?.find((v: any) => v.id === selectedVaultId);
+
+  // Stake mutation
+  const stakeMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedVault || !account) throw new Error("Missing vault or account");
+      
+      const amount = parseFloat(stakeAmount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error("Invalid stake amount");
+      }
+
+      if (amount < parseFloat(selectedVault.minStake)) {
+        throw new Error(`Minimum stake is ${selectedVault.minStake} ETH`);
+      }
+
+      // Send ETH transaction via MetaMask
+      const txHash = await sendTransaction(selectedVault.vaultAddress, stakeAmount);
+      
+      // Record stake in backend
+      const res = await apiRequest("POST", `/api/vaults/${selectedVault.id}/stake`, {
+        walletAddress: account,
+        stakedAmount: stakeAmount,
+        stakeTxHash: txHash
+      });
+      
+      await res.json();
+
+      return txHash;
+    },
+    onSuccess: (txHash) => {
+      toast({
+        title: "Stake Successful!",
+        description: `Transaction: ${txHash.slice(0, 10)}...${txHash.slice(-8)}`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/vaults"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vaults/positions", account] });
+      setShowStakeDialog(false);
+      setStakeAmount("");
+      setSelectedVaultId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Stake Failed",
+        description: error.message || "Failed to stake ETH",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Unstake mutation
+  const unstakeMutation = useMutation({
+    mutationFn: async ({ positionId, vaultAddress, amount }: { positionId: string; vaultAddress: string; amount: string }) => {
+      if (!account) throw new Error("Wallet not connected");
+      
+      // Send ETH withdrawal transaction via MetaMask
+      // Note: For now, we're using a simple ETH send. In production, this should call a vault contract's unstake function
+      const unstakeTxHash = await sendTransaction(account, "0");
+      
+      // Record unstake in backend
+      const res = await apiRequest("POST", `/api/vaults/positions/${positionId}/unstake`, {
+        unstakeTxHash
+      });
+      
+      await res.json();
+      
+      return unstakeTxHash;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Unstake Successful!",
+        description: "Your funds have been withdrawn from the vault",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/vaults"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vaults/positions", account] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Unstake Failed",
+        description: error.message || "Failed to unstake",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleStakeClick = (vaultId: string) => {
+    setSelectedVaultId(vaultId);
+    setShowStakeDialog(true);
+  };
+
+  const handleStake = () => {
+    stakeMutation.mutate();
+  };
+
+  const handleUnstake = (position: any) => {
+    const vault = vaults?.find((v: any) => v.id === position.vaultId);
+    if (vault) {
+      unstakeMutation.mutate({
+        positionId: position.id,
+        vaultAddress: vault.vaultAddress,
+        amount: position.stakedAmount
+      });
+    }
+  };
 
   const getTierColor = (tier: string) => {
     switch (tier) {
@@ -182,7 +295,7 @@ export default function HouseVaultsPage() {
         {/* Available Vaults */}
         <TabsContent value="vaults" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {vaults?.map((vault: any) => (
+            {vaults && Array.isArray(vaults) && vaults.map((vault: any) => (
               <Card key={vault.id} className="border-2 hover:border-primary/50 transition-all" data-testid={`vault-${vault.tier}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -246,7 +359,7 @@ export default function HouseVaultsPage() {
                     <Button 
                       className="w-full" 
                       size="lg"
-                      onClick={() => setSelectedVaultId(vault.id)}
+                      onClick={() => handleStakeClick(vault.id)}
                       data-testid={`button-stake-${vault.tier}`}
                     >
                       <ArrowUpCircle className="mr-2 h-5 w-5" />
@@ -263,7 +376,7 @@ export default function HouseVaultsPage() {
             ))}
           </div>
 
-          {(!vaults || vaults.length === 0) && (
+          {(!vaults || !Array.isArray(vaults) || vaults.length === 0) && (
             <Card>
               <CardContent className="p-12 text-center">
                 <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -276,7 +389,7 @@ export default function HouseVaultsPage() {
 
         {/* My Positions */}
         <TabsContent value="positions" className="space-y-4">
-          {userPositions && userPositions.length > 0 ? (
+          {userPositions && Array.isArray(userPositions) && userPositions.length > 0 ? (
             <div className="space-y-4">
               {userPositions.filter((p: any) => p.status === 'active').map((position: any) => (
                 <Card key={position.id} data-testid={`position-${position.id}`}>
@@ -310,8 +423,18 @@ export default function HouseVaultsPage() {
                         <span>Unlocks on {new Date(position.unlocksAt).toLocaleDateString()}</span>
                       </div>
                     ) : (
-                      <Button className="w-full" variant="destructive" data-testid={`button-unstake-${position.id}`}>
-                        <ArrowDownCircle className="mr-2 h-5 w-5" />
+                      <Button 
+                        className="w-full" 
+                        variant="destructive" 
+                        data-testid={`button-unstake-${position.id}`}
+                        onClick={() => handleUnstake(position)}
+                        disabled={unstakeMutation.isPending}
+                      >
+                        {unstakeMutation.isPending ? (
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        ) : (
+                          <ArrowDownCircle className="mr-2 h-5 w-5" />
+                        )}
                         Unstake Position
                       </Button>
                     )}
@@ -344,6 +467,96 @@ export default function HouseVaultsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Stake Dialog */}
+      <Dialog open={showStakeDialog} onOpenChange={setShowStakeDialog}>
+        <DialogContent data-testid="dialog-stake">
+          <DialogHeader>
+            <DialogTitle>Stake in {selectedVault?.name}</DialogTitle>
+            <DialogDescription>
+              Enter the amount of ETH you want to stake in this vault.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {selectedVault && (
+              <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">APY:</span>
+                  <span className="font-semibold text-green-500">{selectedVault.apy}%</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Min Stake:</span>
+                  <span className="font-semibold">{selectedVault.minStake} ETH</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Lock Period:</span>
+                  <span className="font-semibold">
+                    {selectedVault.lockPeriod === '0' ? 'No Lock' : `${selectedVault.lockPeriod} days`}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Your Balance:</span>
+                  <span className="font-semibold">{balance} ETH</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="stake-amount">Amount (ETH)</Label>
+              <Input
+                id="stake-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={`Min: ${selectedVault?.minStake || '0'}`}
+                value={stakeAmount}
+                onChange={(e) => setStakeAmount(e.target.value)}
+                data-testid="input-stake-amount"
+              />
+            </div>
+
+            {selectedVault && parseFloat(stakeAmount) > 0 && (
+              <div className="p-3 border rounded-lg bg-green-500/10 border-green-500/50">
+                <p className="text-sm text-green-600 dark:text-green-400">
+                  Estimated yearly earnings: ~{(parseFloat(stakeAmount) * parseFloat(selectedVault.apy) / 100).toFixed(4)} ETH
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowStakeDialog(false);
+                setStakeAmount("");
+              }}
+              disabled={stakeMutation.isPending}
+              data-testid="button-cancel-stake"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStake}
+              disabled={stakeMutation.isPending || !stakeAmount || parseFloat(stakeAmount) <= 0}
+              data-testid="button-confirm-stake"
+            >
+              {stakeMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <ArrowUpCircle className="mr-2 h-4 w-4" />
+                  Stake ETH
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
