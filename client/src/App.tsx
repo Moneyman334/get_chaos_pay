@@ -40,6 +40,8 @@ import ReviewsPage from "@/pages/reviews";
 import InvoicesPage from "@/pages/invoices";
 import AnalyticsPage from "@/pages/analytics";
 import PortfolioPage from "@/pages/portfolio";
+import NotificationsPage from "@/pages/notifications";
+import AchievementsPage from "@/pages/achievements";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -83,6 +85,8 @@ function Router() {
       <Route path="/invoices" component={InvoicesPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/portfolio" component={PortfolioPage} />
+      <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/achievements" component={AchievementsPage} />
       <Route component={NotFound} />
     </Switch>
   );
