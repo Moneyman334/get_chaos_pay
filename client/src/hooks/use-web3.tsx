@@ -79,7 +79,7 @@ export function useWeb3() {
           try {
             const balanceBigInt = BigInt(balance);
             const decimals = BigInt(network.decimals || 18);
-            const divisor = BigInt(10) ** decimals;
+            const divisor = BigInt(10 ** Number(decimals));
             const intPart = balanceBigInt / divisor;
             const remainder = balanceBigInt % divisor;
             const fractional = remainder.toString().padStart(Number(decimals), '0').slice(0, 4);
@@ -587,7 +587,7 @@ export function useWeb3() {
         throw new Error('Wallet not connected');
       }
 
-      return transferToken(tokenAddress, state.account, toAddress, amount, decimals);
+      return transferToken(tokenAddress, state.account, toAddress, amount, Number(decimals));
     },
     onSuccess: (txHash, variables) => {
       toast({
@@ -631,7 +631,7 @@ export function useWeb3() {
         throw new Error('Wallet not connected');
       }
 
-      return approveToken(tokenAddress, state.account, spenderAddress, amount, decimals);
+      return approveToken(tokenAddress, state.account, spenderAddress, amount, Number(decimals));
     },
     onSuccess: (txHash) => {
       toast({

@@ -1,0 +1,161 @@
+import { useEffect, useState } from "react";
+import { useWeb3 } from "@/hooks/use-web3";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Activity, Wifi, WifiOff, AlertTriangle } from "lucide-react";
+
+export default function WalletHealthMonitor() {
+  const { isConnected, account, balance, network, chainId, connectWallet } = useWeb3();
+  const { toast } = useToast();
+  const [connectionHealth, setConnectionHealth] = useState<'healthy' | 'degraded' | 'disconnected'>('disconnected');
+  const [lastCheckTime, setLastCheckTime] = useState<Date>(new Date());
+  const [isRecovering, setIsRecovering] = useState(false);
+
+  // Health check function
+  const checkConnectionHealth = async () => {
+    if (!isConnected || !window.ethereum) {
+      setConnectionHealth('disconnected');
+      return;
+    }
+
+    try {
+      // Test connection with a simple RPC call
+      await window.ethereum.request({ method: 'eth_blockNumber' });
+      setConnectionHealth('healthy');
+      setLastCheckTime(new Date());
+    } catch (error) {
+      console.error('Connection health check failed:', error);
+      setConnectionHealth('degraded');
+      
+      // Attempt auto-recovery
+      if (!isRecovering) {
+        attemptRecovery();
+      }
+    }
+  };
+
+  // Auto-recovery mechanism
+  const attemptRecovery = async () => {
+    setIsRecovering(true);
+    
+    try {
+      // Wait a moment before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Try to reconnect
+      const accounts = await window.ethereum?.request({ method: 'eth_accounts' });
+      
+      if (accounts && accounts.length > 0) {
+        setConnectionHealth('healthy');
+        toast({
+          title: "Connection recovered",
+          description: "Wallet connection has been restored",
+        });
+      } else {
+        setConnectionHealth('disconnected');
+        toast({
+          title: "Connection lost",
+          description: "Please reconnect your wallet",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Recovery failed:', error);
+      setConnectionHealth('disconnected');
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
+  // Periodic health checks
+  useEffect(() => {
+    if (!isConnected) {
+      setConnectionHealth('disconnected');
+      return;
+    }
+
+    // Initial check
+    checkConnectionHealth();
+
+    // Check every 30 seconds
+    const interval = setInterval(checkConnectionHealth, 30000);
+
+    return () => clearInterval(interval);
+  }, [isConnected]);
+
+  // Auto-refresh balance every minute
+  useEffect(() => {
+    if (!isConnected || !account) return;
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        const newBalance = await window.ethereum?.request({
+          method: 'eth_getBalance',
+          params: [account, 'latest']
+        });
+        // Balance update handled by useWeb3 hook
+      } catch (error) {
+        console.error('Balance refresh failed:', error);
+      }
+    }, 60000); // Every minute
+
+    return () => clearInterval(refreshInterval);
+  }, [isConnected, account]);
+
+  if (!isConnected) return null;
+
+  const getHealthColor = () => {
+    switch (connectionHealth) {
+      case 'healthy': return 'bg-green-500';
+      case 'degraded': return 'bg-amber-500';
+      case 'disconnected': return 'bg-red-500';
+    }
+  };
+
+  const getHealthIcon = () => {
+    switch (connectionHealth) {
+      case 'healthy': return <Wifi className="h-3 w-3" />;
+      case 'degraded': return <AlertTriangle className="h-3 w-3" />;
+      case 'disconnected': return <WifiOff className="h-3 w-3" />;
+    }
+  };
+
+  const getHealthText = () => {
+    switch (connectionHealth) {
+      case 'healthy': return 'Connected';
+      case 'degraded': return 'Degraded';
+      case 'disconnected': return 'Disconnected';
+    }
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge 
+          variant="outline" 
+          className="gap-2 cursor-pointer relative"
+          data-testid="wallet-health-indicator"
+        >
+          <div className={`w-2 h-2 rounded-full ${getHealthColor()} ${connectionHealth === 'healthy' ? 'animate-pulse' : ''}`} />
+          <span className="hidden sm:inline">{getHealthText()}</span>
+          {getHealthIcon()}
+          {isRecovering && (
+            <div className="absolute -top-1 -right-1">
+              <Activity className="h-3 w-3 animate-spin text-amber-500" />
+            </div>
+          )}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="space-y-1 text-xs">
+          <p><strong>Status:</strong> {getHealthText()}</p>
+          <p><strong>Network:</strong> {network?.name}</p>
+          <p><strong>Balance:</strong> {balance} {network?.symbol}</p>
+          <p><strong>Last Check:</strong> {lastCheckTime.toLocaleTimeString()}</p>
+          {isRecovering && <p className="text-amber-500">Recovering...</p>}
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}

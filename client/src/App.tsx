@@ -59,6 +59,9 @@ import EnhancedConnectionModal from "@/components/enhanced-connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
 import CosmicCursor from "@/components/cosmic-cursor";
 import EmpireOracle from "@/components/empire-oracle";
+import WalletHealthMonitor from "@/components/wallet-health-monitor";
+import WalletActivityIndicator from "@/components/wallet-activity-indicator";
+import { useWalletSession } from "@/hooks/use-wallet-session";
 
 function Router() {
   return (
@@ -120,6 +123,9 @@ function Router() {
 function AppContent() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const { connectWallet, disconnectWallet, chainId } = useWeb3();
+  
+  // Initialize wallet session management with activity tracking
+  useWalletSession();
 
   const handleConnect = () => {
     setShowConnectionModal(true);
@@ -147,6 +153,15 @@ function AppContent() {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
         />
+        
+        {/* Wallet Health Monitor */}
+        <div className="fixed top-20 right-4 z-40 hidden md:block">
+          <WalletHealthMonitor />
+        </div>
+        
+        {/* Wallet Activity Indicator */}
+        <WalletActivityIndicator />
+        
         <Router />
         
         {/* Enhanced Connection Modal */}

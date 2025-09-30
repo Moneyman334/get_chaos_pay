@@ -118,7 +118,7 @@ export default function EnhancedConnectionModal({
     setSelectedWallet('coinbase');
     
     try {
-      if ((window.ethereum as any)?.isCoinbaseWallet) {
+      if (window.ethereum && (window.ethereum as any)?.isCoinbaseWallet) {
         await window.ethereum.request({ method: 'eth_requestAccounts' });
         onClose();
       } else {
