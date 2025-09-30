@@ -26,6 +26,7 @@ import AutoCompoundPage from "@/pages/auto-compound";
 import NotFound from "@/pages/not-found";
 import ConnectionModal from "@/components/connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
+import CosmicCursor from "@/components/cosmic-cursor";
 
 function Router() {
   return (
@@ -77,6 +78,7 @@ function AppContent() {
   return (
     <TooltipProvider>
       <div className="bg-background text-foreground min-h-screen">
+        <CosmicCursor />
         <Toaster />
         <Navigation 
           onConnect={handleConnect}
