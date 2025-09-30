@@ -111,6 +111,50 @@ The platform includes a revolutionary automated trading bot system that executes
 
 **Current Status**: Fully functional development prototype with complete UI/UX flows. Backend redacts secrets but lacks production-grade auth and exchange API modernization.
 
+## House Vaults System
+The platform features a revolutionary player-owned liquidity system where users can stake ETH and become part of the house, earning proportional profits from casino games:
+
+### Architecture
+- **Database Schema**: 4 tables (house_vaults, vault_positions, vault_distributions, vault_earnings)
+- **API Routes**: 9 endpoints for vault management, staking, unstaking, and earnings distribution
+- **Storage Layer**: Full CRUD operations for vault data with PostgreSQL
+- **Frontend Integration**: Dedicated vaults page + Empire Dashboard showcase
+
+### Features
+- **3 Vault Tiers**: Standard (15% APY), Premium (20% APY), Elite (25% APY)
+- **Player-Owned Liquidity**: Users stake ETH to become the house and earn from casino profits
+- **Flexible Lock Periods**: No lock (instant withdrawal), 7-day, or 30-day lock periods
+- **Risk-Based Returns**: Low/medium/high risk levels with corresponding APY rates
+- **Performance Fees**: 10-15% performance fees on earnings
+- **Real-Time Stats**: Live tracking of total locked, active stakers, and earnings
+
+### User Interface
+- **/vaults**: House Vaults marketplace with vault listings, user positions, and earnings dashboard
+- **/empire**: Empire Dashboard with integrated House Vaults showcase section
+- **Navigation**: House Vaults prominently featured in main navigation
+
+### Database Schema
+- **house_vaults**: Vault configurations (name, tier, APY, min stake, lock period, risk level)
+- **vault_positions**: User staking positions with entry/exit tracking
+- **vault_distributions**: Profit distribution history from casino games
+- **vault_earnings**: Individual user earnings with claim tracking
+
+### Implementation Status
+✅ **Production-Ready**: Full-stack implementation with:
+- Complete backend API with validation and error handling
+- Responsive frontend UI with loading states and null guards
+- Empire Dashboard integration with stats overview
+- End-to-end tested and verified
+- Null-safety guards for disconnected wallet states
+- Seeded with 3 active vaults (Standard, Premium, Elite)
+
+### Technical Highlights
+- Safe null-coalescing for all aggregate computations
+- TanStack Query for efficient data fetching and caching
+- Type-safe operations using Zod validation schemas
+- Proper foreign key relationships and constraints
+- Responsive design with Tailwind CSS utilities
+
 # External Dependencies
 
 ## Core Dependencies
