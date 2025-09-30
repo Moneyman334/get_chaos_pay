@@ -13,6 +13,57 @@ Preferred communication style: Simple, everyday language.
 ## Frontend Architecture
 The frontend utilizes React with TypeScript, Vite, and a component-based structure. It leverages shadcn/ui on Radix UI primitives, styled with Tailwind CSS. State management is handled by React hooks and TanStack Query, with Wouter for client-side routing. A custom Web3 hook enables MetaMask integration. The UI incorporates a "Divine Visual System" with cosmic backgrounds, interactive effects (e.g., cosmic cursor, 3D card tilt, parallax), and advanced animations.
 
+### Complete Frontend Pages (30+ Routes)
+**E-Commerce & Payments:**
+- `/subscriptions` - Subscription plans with trial periods, billing management, and cancellation
+- `/affiliate` - Affiliate dashboard with earnings tracking, referral links, and commission history
+- `/gift-cards` - Gift card purchase and redemption with blockchain verification
+- `/loyalty` - Loyalty points dashboard with tier progression (Bronze/Silver/Gold/Platinum)
+- `/cart-recovery` - Abandoned cart recovery with 7-day persistence and expiry warnings
+- `/admin/discounts` - Discount code management with usage tracking and expiration
+- `/crypto-payments` - Universal crypto payment interface supporting 300+ cryptocurrencies
+- `/checkout` - Multi-currency checkout with discount codes and gift card redemption
+- `/orders` - Order history and tracking with blockchain verification
+
+**Web3 & Blockchain:**
+- `/wallet` - Wallet management with balance tracking and transaction history
+- `/tokens` - Token portfolio with multi-chain support
+- `/deposits` - Multi-crypto deposit interface (BTC, ETH, SOL, LTC, DOGE)
+- `/transactions` - Transaction history with blockchain explorer links
+- `/contracts` - Smart contract interaction interface
+- `/nfts` - NFT gallery and management
+
+**Smart Contract Creators:**
+- `/token-creator` - ERC-20 token generator with mintable/burnable/pausable features
+- `/nft-creator` - ERC-721/721A/1155 NFT creator with IPFS integration
+
+**Trading & Automation:**
+- `/sentinel-bot` - AI-powered auto trading bot configuration
+- `/bot-dashboard` - Trading bot performance dashboard with real-time metrics
+- `/bot-config` - Strategy configuration for automated trading
+- `/empire` - Empire dashboard with comprehensive analytics
+- `/vaults` - House vaults staking interface with APY tracking
+- `/auto-compound` - Auto-compound configuration for yield optimization
+
+**Content & Social:**
+- `/games` - Gaming interface
+- `/play` - Game play area
+- `/social-automation` - Twitter/X automation scheduler and post management
+
+### Reusable UI Components
+**Product & Commerce:**
+- `ProductRecommendations` - Smart product suggestions (related, upsell, cross-sell) with relevance scoring
+- `FlashSalesBanner` - Real-time countdown timers with stock progress and discount badges
+- `RecentlyViewed` - Browsing history with quick add-to-cart functionality
+- `ProductVariants` - Dynamic attribute selector (size, color) with stock tracking and price adjustments
+- `PreOrderInterface` - Partial deposit calculator with release date tracking and payment breakdown
+- `CustomerTierBadge` - VIP/Wholesale status indicator with tooltip benefits display
+
+**Infrastructure:**
+- `Navigation` - Main navigation with wallet connection
+- `ConnectionModal` - Wallet connection modal (MetaMask, WalletConnect)
+- `CosmicCursor` - Custom cursor with cosmic trail effects
+
 ## Backend Architecture
 The backend is an Express.js and TypeScript REST API with modular routes for transactions, wallet operations, and network information. It uses an interface-based storage layer with in-memory and PostgreSQL implementations.
 
@@ -68,7 +119,10 @@ A blockchain-native e-commerce payment system offering instant settlement, no ch
 - **Abandoned Cart Recovery**: 7-day cart persistence with conversion tracking and recovery email capability
 - **On-Chain NFT Receipts**: Mint permanent proof-of-purchase NFTs for high-value transactions
 
-**Total Backend Infrastructure**: 20 database tables, 70+ API endpoints, full TypeScript type safety throughout.
+**Total Infrastructure**: 
+- Backend: 20 database tables, 70+ API endpoints, full TypeScript type safety
+- Frontend: 30+ routes, 12+ pages, 6 reusable components, complete UI for all features
+- All features wallet-integrated with real-time updates and responsive design
 
 # External Dependencies
 
