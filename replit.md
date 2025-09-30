@@ -19,6 +19,13 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 - **Web3 Integration**: A `useWeb3` hook handles MetaMask integration, wallet connection, network switching, and account/balance monitoring.
 - **Form Handling**: Utilizes React Hook Form with Zod for client-side validation and strongly typed form submissions.
 - **Performance**: Implements code splitting, lazy loading, memoization, virtual scrolling, and image optimization.
+- **Error Handling & Resilience**:
+  - React Error Boundary catches all crashes with recovery UI (reload/home actions)
+  - Network Status Monitor with real-time online/offline detection and visual banners
+  - Automatic retry with exponential backoff (1s→2s→4s→10s cap) for 408/429/5xx errors
+  - QueryClient: 3 query retries, 2 mutation retries, refetch on reconnect
+  - Branded loading overlay with cosmic animations for initial load
+  - Toast notifications for connectivity changes
 
 ### Backend
 - **Core**: Express.js and TypeScript REST API with modular routes.
@@ -26,6 +33,11 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 - **API Architecture**: Over 70 RESTful endpoints organized by feature, with a request/response flow incorporating rate limiting, authentication, Zod validation, and a storage layer.
 - **Security**: PostgreSQL-backed sessions, Bcrypt password hashing, rate limiting, progressive slow down, CORS, input sanitization, and SQL injection prevention.
 - **Real-time Services**: Auto-Compound Engine, Social Media Scheduler, Trading Bot Engine, and Price Service for real-time crypto price aggregation.
+- **Stability & Resilience**: 
+  - Idempotent graceful shutdown handling (SIGTERM, SIGINT, uncaughtException, unhandledRejection)
+  - Sequential cleanup of all background services even on errors
+  - Proper exit codes (0 for clean, 1 for errors)
+  - Service monitoring with 10s timeout warnings
 
 ## Feature Specifications
 
