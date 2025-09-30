@@ -26,7 +26,7 @@ export default function CheckoutPage() {
   const [currentPayment, setCurrentPayment] = useState<Payment | null>(null);
   
   const { toast } = useToast();
-  const { account, sendTransaction } = useWeb3();
+  const { account, sendTransaction, chainId } = useWeb3();
 
   const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['/api/products/active'],
@@ -62,7 +62,8 @@ export default function CheckoutPage() {
           price: item.product.price
         })),
         totalAmount,
-        currency: 'USD'
+        currency: 'USD',
+        chainId: chainId ? parseInt(chainId, 16) : undefined
       });
       
       return await res.json() as Order;
@@ -85,7 +86,10 @@ export default function CheckoutPage() {
 
   const processMetaMaskPayment = useMutation({
     mutationFn: async () => {
-      if (!currentOrder || !account) throw new Error("Missing order or wallet");
+      if (!currentOrder || !account || !chainId) throw new Error("Missing order, wallet, or chain info");
+      
+      // Get chain ID as number
+      const chainIdNum = parseInt(chainId, 16);
       
       // TODO PRODUCTION: Get live ETH/USD rate from API
       const ETH_USD_RATE = 2500; // Placeholder - replace with real-time rate
@@ -94,13 +98,24 @@ export default function CheckoutPage() {
       // TODO PRODUCTION: Make this configurable via environment variable
       const MERCHANT_ADDRESS = import.meta.env.VITE_MERCHANT_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
       
+      toast({
+        title: "Sending Transaction",
+        description: `Sending ${totalEth} ETH to merchant...`,
+      });
+      
       const txHash = await sendTransaction(MERCHANT_ADDRESS, totalEth);
+      
+      toast({
+        title: "Transaction Sent!",
+        description: "Verifying on blockchain... This may take a moment.",
+      });
       
       const res = await apiRequest("POST", "/api/payments/metamask", {
         orderId: currentOrder.id,
         txHash,
         fromAddress: account,
         toAddress: MERCHANT_ADDRESS,
+        chainId: chainIdNum,
         amount: totalEth,
         amountUSD: currentOrder.totalAmount,
         currency: 'ETH'
@@ -110,9 +125,18 @@ export default function CheckoutPage() {
     },
     onSuccess: (payment) => {
       setCurrentPayment(payment);
+      
+      const verification = payment.providerResponse?.verification;
+      const chainName = payment.providerResponse?.chainName || 'blockchain';
+      const confirmations = verification?.confirmations || 0;
+      const valueETH = verification?.valueETH || payment.amount || '0';
+      
       toast({
-        title: "Payment Submitted!",
-        description: "Transaction sent to blockchain",
+        title: "✅ Payment Verified On-Chain!",
+        description: verification 
+          ? `Blockchain verified ${valueETH} ETH on ${chainName} with ${confirmations} confirmations. Instant settlement, no chargebacks, lower fees than traditional processors.`
+          : "Your transaction has been verified on the blockchain.",
+        duration: 8000,
       });
     },
     onError: (error: any) => {

@@ -15,6 +15,7 @@ import { nftService } from "./nft";
 import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import bcrypt from "bcrypt";
+import { getChainConfig, verifyTransaction, getAllSupportedChains } from "./blockchain-config";
 
 // Ethereum address validation schema
 const ethereumAddressSchema = z.string()
@@ -1716,15 +1717,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
         totalAmount: z.string(),
         currency: z.string().default('USD'),
+        chainId: z.number().int().positive().optional(),
         metadata: z.any().optional()
       });
 
       const orderData = orderSchema.parse(req.body);
+      
+      // Server-side expected crypto amount calculation for MetaMask payments
+      let expectedCryptoAmount = undefined;
+      let expectedChainId = undefined;
+      let fxRateLocked = undefined;
+      
+      if (orderData.paymentMethod === 'metamask' && orderData.chainId) {
+        // TODO PRODUCTION: Replace with real-time price API
+        const ETH_USD_RATE = 2500;
+        fxRateLocked = ETH_USD_RATE.toString();
+        expectedCryptoAmount = (parseFloat(orderData.totalAmount) / ETH_USD_RATE).toFixed(18);
+        expectedChainId = orderData.chainId.toString();
+        
+        console.log(`📊 Order expected payment: ${expectedCryptoAmount} ETH on chain ${expectedChainId} (rate: ${ETH_USD_RATE})`);
+      }
+      
       const order = await storage.createOrder({
         ...orderData,
         status: 'pending',
         userId: (req.user as any)?.id,
         items: orderData.items as any,
+        expectedCryptoAmount,
+        expectedChainId,
+        fxRateLocked,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
       });
 
@@ -1774,6 +1795,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Blockchain Configuration Routes
+  app.get("/api/blockchain/chains", (req, res) => {
+    const chains = getAllSupportedChains();
+    res.json(chains);
+  });
+  
+  app.get("/api/blockchain/chains/:chainId", (req, res) => {
+    const chainId = parseInt(req.params.chainId);
+    const chain = getChainConfig(chainId);
+    
+    if (!chain) {
+      return res.status(404).json({ error: "Chain not supported" });
+    }
+    
+    res.json(chain);
+  });
+  
   // Payment Processing Routes
   app.post("/api/payments/metamask", async (req, res) => {
     try {
@@ -1782,12 +1820,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/, "Invalid transaction hash"),
         fromAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid from address"),
         toAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid to address"),
-        amount: z.string(), // ETH amount
-        amountUSD: z.string(), // USD amount
+        chainId: z.number().int().positive(),
+        amount: z.string(), // Client amount (will be validated against server expectation)
+        amountUSD: z.string(),
         currency: z.string()
       });
 
       const data = paymentSchema.parse(req.body);
+      
+      // SECURITY: Check txHash uniqueness - prevent replay attacks
+      const existingPayments = await storage.getPayments();
+      const existingTx = existingPayments.find(p => p.txHash === data.txHash);
+      if (existingTx) {
+        console.error(`❌ Transaction hash already used: ${data.txHash}`);
+        return res.status(400).json({ 
+          error: "Transaction hash already used. Each transaction can only be used once.",
+          existingPaymentId: existingTx.id
+        });
+      }
+      
+      // Verify chain is supported
+      const chainConfig = getChainConfig(data.chainId);
+      if (!chainConfig) {
+        return res.status(400).json({ 
+          error: `Unsupported chain ID: ${data.chainId}. Supported chains: ${getAllSupportedChains().map(c => `${c.chainName} (${c.chainId})`).join(', ')}`
+        });
+      }
+      
+      // Verify recipient matches server-side merchant address
+      if (data.toAddress.toLowerCase() !== chainConfig.merchantAddress.toLowerCase()) {
+        return res.status(400).json({ 
+          error: `Invalid recipient address. Expected ${chainConfig.merchantAddress}, got ${data.toAddress}` 
+        });
+      }
       
       // Verify order exists and is not expired
       const order = await storage.getOrder(data.orderId);
@@ -1803,33 +1868,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Order is not in pending state" });
       }
       
-      // TODO PRODUCTION: Verify transaction on-chain
-      // - Check txHash exists on blockchain
-      // - Verify to address matches merchant address
-      // - Verify amount is within acceptable range of expected amount
-      // - Check transaction has minimum confirmations
-      // - Verify correct chainId
+      // SECURITY: Bind payment to customer wallet - prevent order hijacking
+      if (order.customerWallet) {
+        if (data.fromAddress.toLowerCase() !== order.customerWallet.toLowerCase()) {
+          console.error(`❌ Payer mismatch: order wallet ${order.customerWallet}, from ${data.fromAddress}`);
+          return res.status(400).json({ 
+            error: "Payment must come from the wallet that created the order",
+            expectedWallet: order.customerWallet,
+            actualWallet: data.fromAddress
+          });
+        }
+      }
+      
+      // SECURITY: Use server-calculated expected amount, not client amount
+      const expectedAmount = order.expectedCryptoAmount || data.amount;
+      const expectedChain = order.expectedChainId ? parseInt(order.expectedChainId) : data.chainId;
+      
+      if (expectedChain !== data.chainId) {
+        return res.status(400).json({ 
+          error: `Chain mismatch: order expects chain ${expectedChain}, payment on chain ${data.chainId}` 
+        });
+      }
+      
+      console.log(`🔍 Verifying transaction ${data.txHash} on ${chainConfig.chainName}...`);
+      console.log(`   Expected amount: ${expectedAmount} ETH (server-calculated)`);
+      console.log(`   Client claimed: ${data.amount} ETH`);
+      
+      // BLOCKCHAIN VERIFICATION: Use server-expected amount for verification
+      const verification = await verifyTransaction(data.txHash, expectedAmount, data.chainId);
+      
+      if (!verification.valid) {
+        console.error(`❌ Transaction verification failed:`, verification.errors);
+        return res.status(400).json({ 
+          error: "Transaction verification failed",
+          details: verification.errors,
+          verificationData: {
+            txHash: verification.txHash,
+            confirmations: verification.confirmations,
+            minRequired: chainConfig.minConfirmations,
+            expectedAmount: expectedAmount,
+            actualAmount: verification.value
+          }
+        });
+      }
+      
+      // SECURITY: Verify from address matches blockchain transaction
+      if (verification.from.toLowerCase() !== data.fromAddress.toLowerCase()) {
+        console.error(`❌ From address mismatch: claimed ${data.fromAddress}, actual ${verification.from}`);
+        return res.status(400).json({ 
+          error: "Transaction sender does not match claimed address"
+        });
+      }
+      
+      console.log(`✅ Transaction verified successfully!`);
+      console.log(`   From: ${verification.from} (matched)`);
+      console.log(`   To: ${verification.to} (matched)`);
+      console.log(`   Value: ${verification.value} ETH (within tolerance)`);
+      console.log(`   Confirmations: ${verification.confirmations}/${chainConfig.minConfirmations}`);
       
       const payment = await storage.createPayment({
         orderId: data.orderId,
         paymentMethod: 'metamask',
         provider: 'metamask',
-        amount: data.amount,
+        amount: verification.value,
         currency: data.currency,
-        status: 'pending',
+        status: 'confirmed',
         txHash: data.txHash,
-        fromAddress: data.fromAddress,
-        toAddress: data.toAddress,
-        confirmations: '0',
+        fromAddress: verification.from,
+        toAddress: verification.to,
+        confirmations: verification.confirmations.toString(),
         providerResponse: {
           amountUSD: data.amountUSD,
-          timestamp: new Date().toISOString()
+          chainId: data.chainId,
+          chainName: chainConfig.chainName,
+          blockNumber: verification.blockNumber,
+          verifiedAt: new Date().toISOString(),
+          expectedAmount: expectedAmount,
+          fxRateLocked: order.fxRateLocked,
+          verification: {
+            valid: verification.valid,
+            confirmations: verification.confirmations,
+            valueETH: verification.value
+          }
         } as any
       });
 
       await storage.updateOrder(data.orderId, {
-        status: 'processing'
+        status: 'completed'
       });
+
+      console.log(`🎉 Payment complete! Order ${order.id} marked as completed`);
 
       res.json(payment);
     } catch (error) {
