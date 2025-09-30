@@ -23,7 +23,7 @@ interface Achievement {
   unlockedAt?: string;
 }
 
-interface Achievement Stats {
+interface AchievementStats {
   totalPoints: number;
   unlockedCount: number;
   totalCount: number;
