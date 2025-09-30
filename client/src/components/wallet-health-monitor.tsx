@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useWeb3 } from "@/hooks/use-web3";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -6,38 +6,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Activity, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 
 export default function WalletHealthMonitor() {
-  const { isConnected, account, balance, network, chainId, connectWallet } = useWeb3();
+  const { isConnected, account, balance, network, chainId, connectWallet, refreshBalance } = useWeb3();
   const { toast } = useToast();
   const [connectionHealth, setConnectionHealth] = useState<'healthy' | 'degraded' | 'disconnected'>('disconnected');
   const [lastCheckTime, setLastCheckTime] = useState<Date>(new Date());
-  const [isRecovering, setIsRecovering] = useState(false);
-
-  // Health check function
-  const checkConnectionHealth = async () => {
-    if (!isConnected || !window.ethereum) {
-      setConnectionHealth('disconnected');
-      return;
-    }
-
-    try {
-      // Test connection with a simple RPC call
-      await window.ethereum.request({ method: 'eth_blockNumber' });
-      setConnectionHealth('healthy');
-      setLastCheckTime(new Date());
-    } catch (error) {
-      console.error('Connection health check failed:', error);
-      setConnectionHealth('degraded');
-      
-      // Attempt auto-recovery
-      if (!isRecovering) {
-        attemptRecovery();
-      }
-    }
-  };
+  const isRecoveringRef = useRef(false);
 
   // Auto-recovery mechanism
-  const attemptRecovery = async () => {
-    setIsRecovering(true);
+  const attemptRecovery = useCallback(async () => {
+    if (isRecoveringRef.current) return;
+    
+    isRecoveringRef.current = true;
     
     try {
       // Wait a moment before retry
@@ -64,9 +43,32 @@ export default function WalletHealthMonitor() {
       console.error('Recovery failed:', error);
       setConnectionHealth('disconnected');
     } finally {
-      setIsRecovering(false);
+      isRecoveringRef.current = false;
     }
-  };
+  }, [toast]);
+
+  // Health check function
+  const checkConnectionHealth = useCallback(async () => {
+    if (!isConnected || !window.ethereum) {
+      setConnectionHealth('disconnected');
+      return;
+    }
+
+    try {
+      // Test connection with a simple RPC call
+      await window.ethereum.request({ method: 'eth_blockNumber' });
+      setConnectionHealth('healthy');
+      setLastCheckTime(new Date());
+    } catch (error) {
+      console.error('Connection health check failed:', error);
+      setConnectionHealth('degraded');
+      
+      // Attempt auto-recovery if not already recovering
+      if (!isRecoveringRef.current) {
+        attemptRecovery();
+      }
+    }
+  }, [isConnected, attemptRecovery]);
 
   // Periodic health checks
   useEffect(() => {
@@ -82,26 +84,22 @@ export default function WalletHealthMonitor() {
     const interval = setInterval(checkConnectionHealth, 30000);
 
     return () => clearInterval(interval);
-  }, [isConnected]);
+  }, [isConnected, checkConnectionHealth]);
 
   // Auto-refresh balance every minute
   useEffect(() => {
-    if (!isConnected || !account) return;
+    if (!isConnected || !account || !refreshBalance) return;
 
     const refreshInterval = setInterval(async () => {
       try {
-        const newBalance = await window.ethereum?.request({
-          method: 'eth_getBalance',
-          params: [account, 'latest']
-        });
-        // Balance update handled by useWeb3 hook
+        await refreshBalance();
       } catch (error) {
         console.error('Balance refresh failed:', error);
       }
     }, 60000); // Every minute
 
     return () => clearInterval(refreshInterval);
-  }, [isConnected, account]);
+  }, [isConnected, account, refreshBalance]);
 
   if (!isConnected) return null;
 
@@ -140,7 +138,7 @@ export default function WalletHealthMonitor() {
           <div className={`w-2 h-2 rounded-full ${getHealthColor()} ${connectionHealth === 'healthy' ? 'animate-pulse' : ''}`} />
           <span className="hidden sm:inline">{getHealthText()}</span>
           {getHealthIcon()}
-          {isRecovering && (
+          {isRecoveringRef.current && (
             <div className="absolute -top-1 -right-1">
               <Activity className="h-3 w-3 animate-spin text-amber-500" />
             </div>
@@ -153,7 +151,7 @@ export default function WalletHealthMonitor() {
           <p><strong>Network:</strong> {network?.name}</p>
           <p><strong>Balance:</strong> {balance} {network?.symbol}</p>
           <p><strong>Last Check:</strong> {lastCheckTime.toLocaleTimeString()}</p>
-          {isRecovering && <p className="text-amber-500">Recovering...</p>}
+          {isRecoveringRef.current && <p className="text-amber-500">Recovering...</p>}
         </div>
       </TooltipContent>
     </Tooltip>

@@ -79,12 +79,13 @@ export function useWeb3() {
           try {
             const balanceBigInt = BigInt(balance);
             const decimals = BigInt(network.decimals || 18);
-            const divisor = BigInt(10 ** Number(decimals));
+            const divisor = BigInt(10) ** decimals;
             const intPart = balanceBigInt / divisor;
             const remainder = balanceBigInt % divisor;
             const fractional = remainder.toString().padStart(Number(decimals), '0').slice(0, 4);
             return `${intPart.toString()}.${fractional.replace(/0+$/, '') || '0'}`;
-          } catch {
+          } catch (error) {
+            console.error("Balance conversion error:", error);
             return '0.0000';
           }
         })();
@@ -297,6 +298,43 @@ export function useWeb3() {
       console.error("Failed to refresh network info:", error);
     }
   }, [state.isConnected]);
+
+  const refreshBalance = useCallback(async () => {
+    try {
+      if (!window.ethereum || !state.account || !state.isConnected) return;
+
+      const balance = await window.ethereum.request({
+        method: 'eth_getBalance',
+        params: [state.account, 'latest']
+      });
+
+      const network = state.network || {
+        decimals: 18,
+        symbol: 'ETH'
+      };
+
+      const balanceInToken = (() => {
+        try {
+          const balanceBigInt = BigInt(balance);
+          const decimals = BigInt(network.decimals || 18);
+          const divisor = BigInt(10) ** decimals;
+          const intPart = balanceBigInt / divisor;
+          const remainder = balanceBigInt % divisor;
+          const fractional = remainder.toString().padStart(Number(decimals), '0').slice(0, 4);
+          return `${intPart.toString()}.${fractional.replace(/0+$/, '') || '0'}`;
+        } catch (error) {
+          console.error("Balance conversion error:", error);
+          return '0.0000';
+        }
+      })();
+
+      updateState({
+        balance: balanceInToken
+      });
+    } catch (error) {
+      console.error("Failed to refresh balance:", error);
+    }
+  }, [state.account, state.isConnected, state.network]);
 
   const estimateGas = useCallback(async (to: string, value: string) => {
     try {
@@ -721,6 +759,7 @@ export function useWeb3() {
     disconnectWallet,
     switchNetwork,
     refreshNetworkInfo,
+    refreshBalance,
     estimateGas,
     sendTransaction,
     getAvailableNetworks,
@@ -745,6 +784,7 @@ export function useWeb3() {
     disconnectWallet,
     switchNetwork,
     refreshNetworkInfo,
+    refreshBalance,
     estimateGas,
     sendTransaction,
     getAvailableNetworks,
