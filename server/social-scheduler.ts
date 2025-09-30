@@ -12,7 +12,7 @@ interface TwitterCredentials {
 class SocialMediaScheduler {
   private isRunning: boolean = false;
 
-  async postToTwitter(credentials: TwitterCredentials, content: string): Promise<{ success: boolean; postUrl?: string; error?: string }> {
+  async postToTwitter(credentials: TwitterCredentials, content: string, accountUsername: string): Promise<{ success: boolean; postUrl?: string; externalPostId?: string; error?: string }> {
     try {
       const client = new TwitterApi({
         appKey: credentials.appKey,
@@ -24,9 +24,9 @@ class SocialMediaScheduler {
       const tweet = await client.v2.tweet(content);
       
       if (tweet.data?.id) {
-        const accountUsername = 'your_account';
-        const postUrl = `https://twitter.com/${accountUsername}/status/${tweet.data.id}`;
-        return { success: true, postUrl };
+        const username = accountUsername.startsWith('@') ? accountUsername.slice(1) : accountUsername;
+        const postUrl = `https://twitter.com/${username}/status/${tweet.data.id}`;
+        return { success: true, postUrl, externalPostId: tweet.data.id };
       }
       
       return { success: false, error: 'Failed to get tweet ID' };
@@ -87,7 +87,8 @@ class SocialMediaScheduler {
                 accessToken: account.accessToken,
                 accessSecret: account.accessTokenSecret
               },
-              post.content
+              post.content,
+              account.accountName
             );
 
             if (result.success) {
@@ -102,7 +103,7 @@ class SocialMediaScheduler {
                 content: post.content,
                 platform: account.platform,
                 postUrl: result.postUrl,
-                externalPostId: result.postUrl?.split('/').pop(),
+                externalPostId: result.externalPostId,
                 status: 'success'
               });
               

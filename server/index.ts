@@ -6,6 +6,31 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Redact sensitive fields from objects for logging
+function redactSensitiveFields(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  
+  const sensitiveFields = [
+    'apiKey', 'apiSecret', 'accessToken', 'accessTokenSecret',
+    'password', 'token', 'secret', 'authorization', 'bearer'
+  ];
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => redactSensitiveFields(item));
+  }
+  
+  const redacted = { ...obj };
+  for (const key of Object.keys(redacted)) {
+    if (sensitiveFields.some(field => key.toLowerCase().includes(field.toLowerCase()))) {
+      redacted[key] = '[REDACTED]';
+    } else if (typeof redacted[key] === 'object') {
+      redacted[key] = redactSensitiveFields(redacted[key]);
+    }
+  }
+  
+  return redacted;
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -22,7 +47,8 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const redacted = redactSensitiveFields(capturedJsonResponse);
+        logLine += ` :: ${JSON.stringify(redacted)}`;
       }
 
       if (logLine.length > 80) {
