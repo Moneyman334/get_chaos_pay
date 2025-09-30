@@ -87,16 +87,22 @@ export default function CheckoutPage() {
     mutationFn: async () => {
       if (!currentOrder || !account) throw new Error("Missing order or wallet");
       
-      const totalEth = (parseFloat(currentOrder.totalAmount) / 2500).toFixed(6);
-      const recipientAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
+      // TODO PRODUCTION: Get live ETH/USD rate from API
+      const ETH_USD_RATE = 2500; // Placeholder - replace with real-time rate
+      const totalEth = (parseFloat(currentOrder.totalAmount) / ETH_USD_RATE).toFixed(6);
       
-      const txHash = await sendTransaction(recipientAddress, totalEth);
+      // TODO PRODUCTION: Make this configurable via environment variable
+      const MERCHANT_ADDRESS = import.meta.env.VITE_MERCHANT_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
+      
+      const txHash = await sendTransaction(MERCHANT_ADDRESS, totalEth);
       
       const res = await apiRequest("POST", "/api/payments/metamask", {
         orderId: currentOrder.id,
         txHash,
         fromAddress: account,
-        amount: currentOrder.totalAmount,
+        toAddress: MERCHANT_ADDRESS,
+        amount: totalEth,
+        amountUSD: currentOrder.totalAmount,
         currency: 'ETH'
       });
       

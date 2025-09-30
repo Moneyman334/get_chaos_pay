@@ -1778,14 +1778,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/payments/metamask", async (req, res) => {
     try {
       const paymentSchema = z.object({
-        orderId: z.string(),
-        txHash: z.string(),
-        fromAddress: z.string(),
-        amount: z.string(),
+        orderId: z.string().uuid(),
+        txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/, "Invalid transaction hash"),
+        fromAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid from address"),
+        toAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid to address"),
+        amount: z.string(), // ETH amount
+        amountUSD: z.string(), // USD amount
         currency: z.string()
       });
 
       const data = paymentSchema.parse(req.body);
+      
+      // Verify order exists and is not expired
+      const order = await storage.getOrder(data.orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      if (order.expiresAt && new Date(order.expiresAt) < new Date()) {
+        return res.status(400).json({ error: "Order has expired" });
+      }
+      
+      if (order.status !== 'pending') {
+        return res.status(400).json({ error: "Order is not in pending state" });
+      }
+      
+      // TODO PRODUCTION: Verify transaction on-chain
+      // - Check txHash exists on blockchain
+      // - Verify to address matches merchant address
+      // - Verify amount is within acceptable range of expected amount
+      // - Check transaction has minimum confirmations
+      // - Verify correct chainId
       
       const payment = await storage.createPayment({
         orderId: data.orderId,
@@ -1796,7 +1819,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'pending',
         txHash: data.txHash,
         fromAddress: data.fromAddress,
-        confirmations: '0'
+        toAddress: data.toAddress,
+        confirmations: '0',
+        providerResponse: {
+          amountUSD: data.amountUSD,
+          timestamp: new Date().toISOString()
+        } as any
       });
 
       await storage.updateOrder(data.orderId, {

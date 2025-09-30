@@ -131,11 +131,11 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {order.items && Array.isArray(order.items) && order.items.length > 0 && (
+                {order.items && Array.isArray(order.items) && (order.items as any[]).length > 0 && (
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">Items</p>
                     <div className="space-y-2">
-                      {order.items.map((item: any, idx: number) => (
+                      {(order.items as any[]).map((item: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span>
                             {item.productId ? `Product: ${item.productId.slice(0, 8)}` : 'Product'}
