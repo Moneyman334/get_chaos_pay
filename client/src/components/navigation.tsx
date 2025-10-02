@@ -6,6 +6,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useWeb3 } from "@/hooks/use-web3";
+import { useAuth } from "@/hooks/use-auth";
+import AuthModal from "@/components/auth-modal";
 import { getNetworkGroup } from "@/lib/web3";
 import { 
   Wallet, 
@@ -29,7 +31,9 @@ import {
   TrendingUp,
   Activity,
   LineChart,
-  Lock
+  Lock,
+  LogOut,
+  User as UserIcon
 } from "lucide-react";
 
 interface NavigationProps {
@@ -55,12 +59,15 @@ const navigationItems = [
   { path: "/crypto-payments", label: "All Crypto", icon: Coins },
   { path: "/token-creator", label: "Create Token", icon: Sparkles },
   { path: "/nft-creator", label: "Create NFT", icon: Image },
-  { path: "/nfts", label: "NFT Gallery", icon: Palette }
+  { path: "/nfts", label: "NFT Gallery", icon: Palette },
+  { path: "/admin/discounts", label: "Discounts Admin", icon: Sparkles, adminOnly: true },
+  { path: "/admin/flash-sales", label: "Flash Sales Admin", icon: Zap, adminOnly: true }
 ];
 
 export default function Navigation({ onConnect, onDisconnect }: NavigationProps) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
   const { 
     isConnected, 
@@ -72,6 +79,15 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
     getCurrentNetworkInfo,
     isCurrentNetworkSupported
   } = useWeb3();
+  
+  const { user, isAdmin, logout, isLoggingOut } = useAuth();
+  
+  const filteredNavigationItems = navigationItems.filter(item => {
+    if (item.adminOnly) {
+      return isAdmin;
+    }
+    return true;
+  });
 
   const handleNetworkChange = (chainId: string) => {
     switchNetwork(chainId);
@@ -116,7 +132,7 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
 
   const NavLinks = ({ mobile = false }) => (
     <div className={`${mobile ? 'flex flex-col space-y-4' : 'flex items-center space-x-8'}`}>
-      {navigationItems.map(({ path, label, icon: Icon, featured }) => (
+      {filteredNavigationItems.map(({ path, label, icon: Icon, featured }) => (
         <Link 
           key={path}
           href={path}
@@ -272,7 +288,7 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
               )}
             </div>
 
-            {/* Wallet Connection */}
+            {/* Wallet Connection & Auth */}
             <div className="flex items-center space-x-3">
               {isConnected ? (
                 <div className="hidden md:flex items-center space-x-3">
@@ -301,6 +317,39 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
                 >
                   <Wallet className="mr-2 h-4 w-4" />
                   Connect Wallet
+                </Button>
+              )}
+              
+              {/* User Auth */}
+              {user ? (
+                <div className="hidden md:flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                    <UserIcon className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium" data-testid="nav-username">{user.username}</span>
+                    {isAdmin && (
+                      <Badge variant="default" className="text-xs" data-testid="badge-admin">Admin</Badge>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => logout()}
+                    disabled={isLoggingOut}
+                    data-testid="button-logout"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {isLoggingOut ? "Logging out..." : "Logout"}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => setShowAuthModal(true)}
+                  size="sm"
+                  variant="default"
+                  data-testid="button-login"
+                >
+                  <UserIcon className="mr-2 h-4 w-4" />
+                  Login
                 </Button>
               )}
             </div>
@@ -490,6 +539,9 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
           </div>
         </div>
       </div>
+      
+      {/* Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </header>
   );
 }
