@@ -2175,12 +2175,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/bot/subscribe", async (req, res) => {
     try {
       const subscriptionSchema = z.object({
-        userId: z.string(),
+        userId: z.string().optional(),
+        walletAddress: z.string().optional(),
         planType: z.enum(['starter', 'pro', 'elite']),
         price: z.string(),
         currency: z.string().default('USD'),
         paymentTxHash: z.string().optional()
-      });
+      }).refine(
+        (data) => data.userId || data.walletAddress,
+        { message: "Either userId or walletAddress must be provided" }
+      );
 
       const data = subscriptionSchema.parse(req.body);
       
@@ -2196,6 +2200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const subscription = await storage.createBotSubscription({
         userId: data.userId,
+        walletAddress: data.walletAddress,
         planType: data.planType,
         status: 'active',
         startDate: new Date(),
