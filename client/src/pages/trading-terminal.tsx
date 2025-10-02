@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   TrendingUp, TrendingDown, Bell, Fish, Newspaper, Fuel, 
   LineChart, ArrowUpRight, ArrowDownRight, Activity, DollarSign,
@@ -118,6 +119,12 @@ export default function TradingTerminal() {
     refetchInterval: 15000,
   });
 
+  // Fetch Coins Data for Heatmap
+  const { data: coinsData, isLoading: coinsLoading } = useQuery<{ success: boolean; data: any[] }>({
+    queryKey: ["/api/coins"],
+    refetchInterval: 30000,
+  });
+
   // Create Price Alert
   const createAlertMutation = useMutation({
     mutationFn: async (alert: any) => {
@@ -220,6 +227,18 @@ export default function TradingTerminal() {
             <p className="text-slate-400 mt-2">Professional-grade market intelligence & analytics</p>
           </div>
           <div className="flex items-center gap-3">
+            <Select value={selectedCoin} onValueChange={setSelectedCoin}>
+              <SelectTrigger className="w-[180px] bg-slate-800 border-purple-500/30" data-testid="coin-selector">
+                <SelectValue placeholder="Select coin" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-purple-500/30">
+                <SelectItem value="bitcoin">Bitcoin (BTC)</SelectItem>
+                <SelectItem value="ethereum">Ethereum (ETH)</SelectItem>
+                <SelectItem value="cardano">Cardano (ADA)</SelectItem>
+                <SelectItem value="solana">Solana (SOL)</SelectItem>
+                <SelectItem value="polkadot">Polkadot (DOT)</SelectItem>
+              </SelectContent>
+            </Select>
             <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
               <Activity className="h-3 w-3 mr-1 animate-pulse" />
               Live Data
@@ -555,7 +574,7 @@ export default function TradingTerminal() {
             <CardDescription>Visual performance across all assets (24h change)</CardDescription>
           </CardHeader>
           <CardContent>
-            {coinsData?.isLoading ? (
+            {coinsLoading ? (
               <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                 {Array.from({ length: 24 }).map((_, i) => (
                   <div key={i} className="h-24 bg-slate-800/30 rounded-lg animate-pulse" />
