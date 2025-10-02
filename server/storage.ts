@@ -2381,6 +2381,88 @@ export class PostgreSQLStorage implements IStorage {
       .returning();
     return updated;
   }
+  
+  // Bridge Transaction methods
+  async getBridgeTransactions(walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    return await db.select().from(bridgeTransactions)
+      .where(sql`lower(${bridgeTransactions.walletAddress}) = ${normalized}`)
+      .orderBy(desc(bridgeTransactions.createdAt));
+  }
+  
+  async getBridgeTransaction(id: string) {
+    const [transaction] = await db.select().from(bridgeTransactions)
+      .where(eq(bridgeTransactions.id, id))
+      .limit(1);
+    return transaction;
+  }
+  
+  async createBridgeTransaction(transaction: InsertBridgeTransaction) {
+    const [created] = await db.insert(bridgeTransactions).values(transaction).returning();
+    return created;
+  }
+  
+  async updateBridgeTransaction(id: string, updates: Partial<InsertBridgeTransaction>) {
+    const [updated] = await db.update(bridgeTransactions)
+      .set(updates)
+      .where(eq(bridgeTransactions.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Trading Signal methods
+  async getTradingSignals() {
+    return await db.select().from(tradingSignals)
+      .orderBy(desc(tradingSignals.createdAt));
+  }
+  
+  async getTradingSignal(id: string) {
+    const [signal] = await db.select().from(tradingSignals)
+      .where(eq(tradingSignals.id, id))
+      .limit(1);
+    return signal;
+  }
+  
+  async createTradingSignal(signal: InsertTradingSignal) {
+    const [created] = await db.insert(tradingSignals).values(signal).returning();
+    return created;
+  }
+  
+  async updateTradingSignal(id: string, updates: Partial<InsertTradingSignal>) {
+    const [updated] = await db.update(tradingSignals)
+      .set(updates)
+      .where(eq(tradingSignals.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Governance Stake methods
+  async getGovernanceStakes(walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    return await db.select().from(governanceStakes)
+      .where(sql`lower(${governanceStakes.walletAddress}) = ${normalized}`)
+      .orderBy(desc(governanceStakes.createdAt));
+  }
+  
+  async getGovernanceStake(id: string) {
+    const [stake] = await db.select().from(governanceStakes)
+      .where(eq(governanceStakes.id, id))
+      .limit(1);
+    return stake;
+  }
+  
+  async createGovernanceStake(stake: InsertGovernanceStake) {
+    const [created] = await db.insert(governanceStakes).values(stake).returning();
+    return created;
+  }
+  
+  async updateGovernanceStake(id: string, updates: Partial<InsertGovernanceStake>) {
+    const [updated] = await db.update(governanceStakes)
+      .set(updates)
+      .where(eq(governanceStakes.id, id))
+      .returning();
+    return updated;
+  }
 }
 
 // Use PostgreSQL storage instead of MemStorage
