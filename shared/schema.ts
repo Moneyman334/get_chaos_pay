@@ -1574,3 +1574,82 @@ export type InsertPreOrder = z.infer<typeof insertPreOrderSchema>;
 export type PreOrder = typeof preOrders.$inferSelect;
 export type InsertRecentlyViewed = z.infer<typeof insertRecentlyViewedSchema>;
 export type RecentlyViewed = typeof recentlyViewed.$inferSelect;
+
+export const bridgeTransactions = pgTable("bridge_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  sourceChain: text("source_chain").notNull(),
+  destinationChain: text("destination_chain").notNull(),
+  token: text("token").notNull(),
+  amount: text("amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  sourceTxHash: text("source_tx_hash"),
+  destinationTxHash: text("destination_tx_hash"),
+  estimatedTime: text("estimated_time"),
+  fee: text("fee"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  walletIdx: index("bridge_wallet_idx").on(sql`lower(${table.walletAddress})`),
+  statusIdx: index("bridge_status_idx").on(table.status),
+  createdIdx: index("bridge_created_idx").on(table.createdAt),
+}));
+
+export const tradingSignals = pgTable("trading_signals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pair: text("pair").notNull(),
+  signal: text("signal").notNull(),
+  confidence: text("confidence").notNull(),
+  timeframe: text("timeframe").notNull(),
+  entry: text("entry").notNull(),
+  target: text("target").notNull(),
+  stopLoss: text("stop_loss").notNull(),
+  analysis: text("analysis"),
+  indicators: jsonb("indicators"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+}, (table) => ({
+  pairIdx: index("signals_pair_idx").on(table.pair),
+  statusIdx: index("signals_status_idx").on(table.status),
+  createdIdx: index("signals_created_idx").on(table.createdAt),
+}));
+
+export const governanceStakes = pgTable("governance_stakes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  amount: text("amount").notNull(),
+  votingPower: text("voting_power").notNull(),
+  lockPeriod: text("lock_period").notNull(),
+  unlockDate: timestamp("unlock_date").notNull(),
+  status: text("status").notNull().default("active"),
+  rewards: text("rewards").notNull().default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  walletIdx: index("gov_stakes_wallet_idx").on(sql`lower(${table.walletAddress})`),
+  statusIdx: index("gov_stakes_status_idx").on(table.status),
+  unlockIdx: index("gov_stakes_unlock_idx").on(table.unlockDate),
+}));
+
+export const insertBridgeTransactionSchema = createInsertSchema(bridgeTransactions).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
+export const insertTradingSignalSchema = createInsertSchema(tradingSignals).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertGovernanceStakeSchema = createInsertSchema(governanceStakes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertBridgeTransaction = z.infer<typeof insertBridgeTransactionSchema>;
+export type BridgeTransaction = typeof bridgeTransactions.$inferSelect;
+export type InsertTradingSignal = z.infer<typeof insertTradingSignalSchema>;
+export type TradingSignal = typeof tradingSignals.$inferSelect;
+export type InsertGovernanceStake = z.infer<typeof insertGovernanceStakeSchema>;
+export type GovernanceStake = typeof governanceStakes.$inferSelect;
