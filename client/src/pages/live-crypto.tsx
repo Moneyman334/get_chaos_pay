@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -13,7 +14,10 @@ import {
   RefreshCw,
   Activity,
   BarChart3,
-  Sparkles
+  Sparkles,
+  Bot,
+  ArrowUpCircle,
+  ArrowDownCircle
 } from "lucide-react";
 
 interface LiveCryptoData {
@@ -45,6 +49,26 @@ interface LivePricesResponse {
   count: number;
 }
 
+interface BotTrade {
+  id: string;
+  tradingPair: string;
+  side: string;
+  price: string;
+  amount: string;
+  total: string;
+  status: string;
+  reason: string;
+  executedAt: string;
+  createdAt: string;
+}
+
+interface BotTradesResponse {
+  success: boolean;
+  data: BotTrade[];
+  timestamp: string;
+  count: number;
+}
+
 export default function LiveCrypto() {
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -53,10 +77,20 @@ export default function LiveCrypto() {
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  const { data: pricesData, isLoading, refetch } = useQuery<LivePricesResponse>({
+  const { data: pricesData, isLoading, refetch: refetchPrices } = useQuery<LivePricesResponse>({
     queryKey: ["/api/live-prices"],
     refetchInterval: autoRefresh ? 30000 : false,
   });
+
+  const { data: tradesData, refetch: refetchTrades } = useQuery<BotTradesResponse>({
+    queryKey: ["/api/bot/recent-trades"],
+    refetchInterval: autoRefresh ? 10000 : false,
+  });
+
+  const refetchAll = () => {
+    refetchPrices();
+    refetchTrades();
+  };
 
   useEffect(() => {
     localStorage.setItem("crypto-favorites", JSON.stringify(favorites));
@@ -256,7 +290,7 @@ export default function LiveCrypto() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => refetch()}
+                  onClick={() => refetchAll()}
                   data-testid="button-refresh"
                   className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
                 >
@@ -281,6 +315,88 @@ export default function LiveCrypto() {
                 data-testid="input-search"
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Sentinel Bot Trading Activity Feed */}
+        <Card className="border-primary/20 shadow-lg bg-gradient-to-br from-card/50 to-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Bot className="h-5 w-5 text-primary" />
+              <span>Sentinel Bot Live Trading Activity</span>
+              <Badge variant="outline" className="ml-2">
+                <div className="flex items-center space-x-1">
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span>Live</span>
+                </div>
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Real-time automated trading activity across all strategies
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px] pr-4" data-testid="trading-activity-feed">
+              {tradesData && tradesData.data.length > 0 ? (
+                <div className="space-y-2">
+                  {tradesData.data.slice(0, 20).map((trade) => (
+                    <div
+                      key={trade.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-card/50 border border-border/50 hover:border-primary/30 transition-colors"
+                      data-testid={`trade-item-${trade.id}`}
+                    >
+                      <div className="flex items-center space-x-3 flex-1">
+                        {trade.side === 'buy' ? (
+                          <ArrowUpCircle className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <ArrowDownCircle className="h-5 w-5 text-red-500" />
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <Badge 
+                              variant={trade.side === 'buy' ? 'default' : 'destructive'}
+                              className="text-xs"
+                            >
+                              {trade.side.toUpperCase()}
+                            </Badge>
+                            <span className="font-semibold">{trade.tradingPair}</span>
+                          </div>
+                          {trade.reason && (
+                            <p className="text-xs text-muted-foreground mt-1 truncate max-w-md">
+                              {trade.reason}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right min-w-[120px]">
+                        <p className="font-mono text-sm">
+                          ${parseFloat(trade.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {parseFloat(trade.amount).toFixed(6)} {trade.tradingPair.split('-')[0]}
+                        </p>
+                      </div>
+                      <div className="text-right min-w-[100px] ml-4">
+                        <Badge variant="outline" className="text-xs">
+                          {trade.status}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(trade.createdAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Bot className="h-12 w-12 text-muted-foreground mb-3 opacity-50" />
+                  <p className="text-muted-foreground">No trading activity yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Bot trades will appear here in real-time
+                  </p>
+                </div>
+              )}
+            </ScrollArea>
           </CardContent>
         </Card>
 
