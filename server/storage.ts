@@ -255,6 +255,7 @@ export interface IStorage {
   // Bot Trade methods
   getUserBotTrades(userId: string, limit: number): Promise<any[]>;
   getStrategyTrades(activeStrategyId: string): Promise<any[]>;
+  getRecentBotTrades(limit: number): Promise<any[]>;
   
   // House Vault methods
   getAllHouseVaults(): Promise<HouseVault[]>;
@@ -1919,6 +1920,13 @@ export class PostgreSQLStorage implements IStorage {
     const trades = await db.select().from(botTrades)
       .where(eq(botTrades.activeStrategyId, activeStrategyId))
       .orderBy(desc(botTrades.createdAt));
+    return trades;
+  }
+
+  async getRecentBotTrades(limit: number) {
+    const trades = await db.select().from(botTrades)
+      .orderBy(desc(botTrades.createdAt))
+      .limit(limit);
     return trades;
   }
   

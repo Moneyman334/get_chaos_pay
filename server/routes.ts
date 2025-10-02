@@ -4596,6 +4596,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get recent bot trading activity
+  app.get("/api/bot/recent-trades", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const trades = await storage.getRecentBotTrades(limit);
+      
+      res.json({
+        success: true,
+        data: trades,
+        timestamp: new Date().toISOString(),
+        count: trades.length
+      });
+    } catch (error) {
+      console.error("Failed to fetch recent bot trades:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch recent bot trades",
+        data: []
+      });
+    }
+  });
+  
   const httpServer = createServer(app);
   return httpServer;
 }
