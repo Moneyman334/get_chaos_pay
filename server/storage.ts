@@ -841,6 +841,9 @@ export class MemStorage implements IStorage {
 const sql_client = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql_client);
 
+// Export database client for session store
+export { db };
+
 export class PostgreSQLStorage implements IStorage {
   // Health check to verify database extensions
   async healthCheck(): Promise<void> {
