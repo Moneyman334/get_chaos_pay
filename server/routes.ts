@@ -4872,6 +4872,311 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ========== OMNIVERSE SYNDICATE VAULT API ==========
+  
+  // Create vault
+  app.post("/api/vault/create", async (req, res) => {
+    try {
+      const vaultSchema = z.object({
+        ownerAddress: z.string(),
+        vaultName: z.string().default("OMNIVERSE SYNDICATE VAULT"),
+        masterPassword: z.string().min(8),
+        encryptedPrivateKey: z.string().optional(),
+        encryptedSeed: z.string().optional(),
+        recoveryPhrase: z.string().optional(),
+        biometricHash: z.string().optional(),
+      });
+
+      const data = vaultSchema.parse(req.body);
+      
+      // Check if vault already exists
+      const existing = await storage.getVaultByOwner(data.ownerAddress);
+      if (existing) {
+        return res.status(400).json({ error: "Vault already exists for this address" });
+      }
+
+      const vault = await storage.createVault(data);
+      
+      // Log vault creation
+      await storage.createVaultSecurityLog({
+        vaultId: vault.id,
+        eventType: "vault_created",
+        severity: "info",
+        actionTaken: "Created new vault",
+        success: "true",
+      });
+
+      res.status(201).json(vault);
+    } catch (error) {
+      console.error("Failed to create vault:", error);
+      res.status(500).json({ error: "Failed to create vault" });
+    }
+  });
+
+  // Get vault by owner
+  app.get("/api/vault/:ownerAddress", async (req, res) => {
+    try {
+      const { ownerAddress } = req.params;
+      const vault = await storage.getVaultByOwner(ownerAddress);
+      
+      if (!vault) {
+        return res.status(404).json({ error: "Vault not found" });
+      }
+
+      // Check if vault is locked
+      if (vault.isLocked === 'true') {
+        if (vault.lockoutUntil && new Date(vault.lockoutUntil) > new Date()) {
+          return res.status(423).json({ 
+            error: "Vault is locked", 
+            lockoutUntil: vault.lockoutUntil 
+          });
+        } else {
+          // Unlock if lockout period has expired
+          await storage.unlockVault(vault.id);
+        }
+      }
+
+      // Update last accessed
+      await storage.updateVault(vault.id, {
+        lastAccessed: new Date(),
+        accessCount: (parseInt(vault.accessCount) + 1).toString()
+      });
+
+      // Log access
+      await storage.createVaultSecurityLog({
+        vaultId: vault.id,
+        eventType: "vault_accessed",
+        severity: "info",
+        actionTaken: "Vault accessed successfully",
+        success: "true",
+      });
+
+      res.json(vault);
+    } catch (error) {
+      console.error("Failed to fetch vault:", error);
+      res.status(500).json({ error: "Failed to fetch vault" });
+    }
+  });
+
+  // Unlock vault (verify password)
+  app.post("/api/vault/unlock", async (req, res) => {
+    try {
+      const { ownerAddress, masterPassword } = req.body;
+      
+      const vault = await storage.getVaultByOwner(ownerAddress);
+      if (!vault) {
+        return res.status(404).json({ error: "Vault not found" });
+      }
+
+      // Check if vault is locked
+      if (vault.isLocked === 'true' && vault.lockoutUntil && new Date(vault.lockoutUntil) > new Date()) {
+        return res.status(423).json({ 
+          error: "Vault is locked due to multiple failed attempts", 
+          lockoutUntil: vault.lockoutUntil 
+        });
+      }
+
+      // Verify password
+      if (vault.masterPassword !== masterPassword) {
+        await storage.recordFailedAccess(vault.id);
+        
+        const failedAttempts = parseInt(vault.failedAttempts) + 1;
+        
+        // Lock vault after 3 failed attempts
+        if (failedAttempts >= 3) {
+          await storage.lockVault(vault.id, 30); // 30 minute lockout
+          
+          await storage.createVaultSecurityLog({
+            vaultId: vault.id,
+            eventType: "vault_locked",
+            severity: "critical",
+            actionTaken: "Vault locked due to multiple failed attempts",
+            success: "false",
+          });
+          
+          return res.status(423).json({ 
+            error: "Vault locked due to multiple failed attempts. Try again in 30 minutes." 
+          });
+        }
+        
+        await storage.createVaultSecurityLog({
+          vaultId: vault.id,
+          eventType: "failed_unlock",
+          severity: "warning",
+          actionTaken: "Failed unlock attempt",
+          success: "false",
+        });
+        
+        return res.status(401).json({ 
+          error: "Invalid password", 
+          attemptsRemaining: 3 - failedAttempts 
+        });
+      }
+
+      // Success - reset failed attempts and unlock
+      await storage.resetFailedAttempts(vault.id);
+      await storage.unlockVault(vault.id);
+
+      await storage.createVaultSecurityLog({
+        vaultId: vault.id,
+        eventType: "vault_unlocked",
+        severity: "info",
+        actionTaken: "Vault unlocked successfully",
+        success: "true",
+      });
+
+      res.json({ success: true, message: "Vault unlocked" });
+    } catch (error) {
+      console.error("Failed to unlock vault:", error);
+      res.status(500).json({ error: "Failed to unlock vault" });
+    }
+  });
+
+  // Get vault transactions
+  app.get("/api/vault/:vaultId/transactions", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      
+      const transactions = await storage.getVaultTransactions(vaultId, limit);
+      res.json(transactions);
+    } catch (error) {
+      console.error("Failed to fetch vault transactions:", error);
+      res.status(500).json({ error: "Failed to fetch transactions" });
+    }
+  });
+
+  // Create vault transaction
+  app.post("/api/vault/transaction", async (req, res) => {
+    try {
+      const transactionSchema = z.object({
+        vaultId: z.string(),
+        txHash: z.string().optional(),
+        type: z.string(),
+        amount: z.string(),
+        currency: z.string(),
+        fromAddress: z.string().optional(),
+        toAddress: z.string().optional(),
+        status: z.string().default("pending"),
+        purpose: z.string().optional(),
+        category: z.string().optional(),
+        encryptedData: z.string().optional(),
+      });
+
+      const data = transactionSchema.parse(req.body);
+      const transaction = await storage.createVaultTransaction(data);
+
+      // Log transaction
+      await storage.createVaultSecurityLog({
+        vaultId: data.vaultId,
+        eventType: "transaction_created",
+        severity: "info",
+        actionTaken: `${data.type} transaction created`,
+        success: "true",
+        metadata: { txHash: data.txHash, amount: data.amount, currency: data.currency }
+      });
+
+      res.status(201).json(transaction);
+    } catch (error) {
+      console.error("Failed to create transaction:", error);
+      res.status(500).json({ error: "Failed to create transaction" });
+    }
+  });
+
+  // Get vault assets
+  app.get("/api/vault/:vaultId/assets", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const assets = await storage.getVaultAssets(vaultId);
+      res.json(assets);
+    } catch (error) {
+      console.error("Failed to fetch vault assets:", error);
+      res.status(500).json({ error: "Failed to fetch assets" });
+    }
+  });
+
+  // Add vault asset
+  app.post("/api/vault/asset", async (req, res) => {
+    try {
+      const assetSchema = z.object({
+        vaultId: z.string(),
+        assetType: z.string(),
+        tokenAddress: z.string().optional(),
+        tokenSymbol: z.string(),
+        tokenName: z.string(),
+        balance: z.string().default("0"),
+        usdValue: z.string().default("0"),
+        chain: z.string(),
+        decimals: z.string().default("18"),
+        logoUrl: z.string().optional(),
+      });
+
+      const data = assetSchema.parse(req.body);
+      const asset = await storage.createVaultAsset(data);
+
+      res.status(201).json(asset);
+    } catch (error) {
+      console.error("Failed to add asset:", error);
+      res.status(500).json({ error: "Failed to add asset" });
+    }
+  });
+
+  // Get vault security logs
+  app.get("/api/vault/:vaultId/security-logs", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      
+      const logs = await storage.getVaultSecurityLogs(vaultId, limit);
+      res.json(logs);
+    } catch (error) {
+      console.error("Failed to fetch security logs:", error);
+      res.status(500).json({ error: "Failed to fetch security logs" });
+    }
+  });
+
+  // Create vault backup
+  app.post("/api/vault/backup", async (req, res) => {
+    try {
+      const backupSchema = z.object({
+        vaultId: z.string(),
+        backupType: z.string(),
+        encryptedBackup: z.string(),
+        backupHash: z.string(),
+        version: z.string(),
+        expiresAt: z.string().optional().transform(v => v ? new Date(v) : undefined),
+      });
+
+      const data = backupSchema.parse(req.body);
+      const backup = await storage.createVaultBackup(data);
+
+      await storage.createVaultSecurityLog({
+        vaultId: data.vaultId,
+        eventType: "backup_created",
+        severity: "info",
+        actionTaken: `${data.backupType} backup created`,
+        success: "true",
+      });
+
+      res.status(201).json(backup);
+    } catch (error) {
+      console.error("Failed to create backup:", error);
+      res.status(500).json({ error: "Failed to create backup" });
+    }
+  });
+
+  // Get vault backups
+  app.get("/api/vault/:vaultId/backups", async (req, res) => {
+    try {
+      const { vaultId } = req.params;
+      const backups = await storage.getVaultBackups(vaultId);
+      res.json(backups);
+    } catch (error) {
+      console.error("Failed to fetch backups:", error);
+      res.status(500).json({ error: "Failed to fetch backups" });
+    }
+  });
+  
   const httpServer = createServer(app);
   return httpServer;
 }

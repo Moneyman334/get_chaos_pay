@@ -108,7 +108,22 @@ import {
   type CryptoNews,
   type InsertCryptoNews,
   type MarketSentiment,
-  type InsertMarketSentiment
+  type InsertMarketSentiment,
+  omniverseVaults,
+  vaultTransactions,
+  vaultAssets,
+  vaultSecurityLogs,
+  vaultBackups,
+  type OmniverseVault,
+  type InsertOmniverseVault,
+  type VaultTransaction,
+  type InsertVaultTransaction,
+  type VaultAsset,
+  type InsertVaultAsset,
+  type VaultSecurityLog,
+  type InsertVaultSecurityLog,
+  type VaultBackup,
+  type InsertVaultBackup
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -406,6 +421,33 @@ export interface IStorage {
   getLatestMarketSentiment(): Promise<MarketSentiment | undefined>;
   getMarketSentimentHistory(limit?: number): Promise<MarketSentiment[]>;
   createMarketSentiment(sentiment: InsertMarketSentiment): Promise<MarketSentiment>;
+  
+  // Omniverse Vault methods
+  getVaultByOwner(ownerAddress: string): Promise<OmniverseVault | undefined>;
+  createVault(vault: InsertOmniverseVault): Promise<OmniverseVault>;
+  updateVault(id: string, updates: Partial<InsertOmniverseVault>): Promise<OmniverseVault | undefined>;
+  lockVault(id: string, lockoutMinutes: number): Promise<void>;
+  unlockVault(id: string): Promise<void>;
+  recordFailedAccess(id: string): Promise<void>;
+  resetFailedAttempts(id: string): Promise<void>;
+  
+  // Vault Transaction methods
+  getVaultTransactions(vaultId: string, limit?: number): Promise<VaultTransaction[]>;
+  createVaultTransaction(transaction: InsertVaultTransaction): Promise<VaultTransaction>;
+  updateVaultTransaction(id: string, updates: Partial<InsertVaultTransaction>): Promise<VaultTransaction | undefined>;
+  
+  // Vault Asset methods
+  getVaultAssets(vaultId: string): Promise<VaultAsset[]>;
+  createVaultAsset(asset: InsertVaultAsset): Promise<VaultAsset>;
+  updateVaultAsset(id: string, updates: Partial<InsertVaultAsset>): Promise<VaultAsset | undefined>;
+  
+  // Vault Security Log methods
+  getVaultSecurityLogs(vaultId: string, limit?: number): Promise<VaultSecurityLog[]>;
+  createVaultSecurityLog(log: InsertVaultSecurityLog): Promise<VaultSecurityLog>;
+  
+  // Vault Backup methods
+  getVaultBackups(vaultId: string): Promise<VaultBackup[]>;
+  createVaultBackup(backup: InsertVaultBackup): Promise<VaultBackup>;
 }
 
 export class MemStorage implements IStorage {
@@ -2610,6 +2652,122 @@ export class PostgreSQLStorage implements IStorage {
   
   async createMarketSentiment(sentiment: InsertMarketSentiment) {
     const [created] = await db.insert(marketSentiment).values(sentiment).returning();
+    return created;
+  }
+  
+  // Omniverse Vault methods
+  async getVaultByOwner(ownerAddress: string) {
+    const [vault] = await db.select().from(omniverseVaults)
+      .where(eq(omniverseVaults.ownerAddress, ownerAddress));
+    return vault;
+  }
+  
+  async createVault(vault: InsertOmniverseVault) {
+    const [created] = await db.insert(omniverseVaults).values(vault).returning();
+    return created;
+  }
+  
+  async updateVault(id: string, updates: Partial<InsertOmniverseVault>) {
+    const [updated] = await db.update(omniverseVaults)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(omniverseVaults.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async lockVault(id: string, lockoutMinutes: number) {
+    const lockoutUntil = new Date();
+    lockoutUntil.setMinutes(lockoutUntil.getMinutes() + lockoutMinutes);
+    await db.update(omniverseVaults)
+      .set({ isLocked: 'true', lockoutUntil, updatedAt: new Date() })
+      .where(eq(omniverseVaults.id, id));
+  }
+  
+  async unlockVault(id: string) {
+    await db.update(omniverseVaults)
+      .set({ isLocked: 'false', lockoutUntil: null, updatedAt: new Date() })
+      .where(eq(omniverseVaults.id, id));
+  }
+  
+  async recordFailedAccess(id: string) {
+    const [vault] = await db.select().from(omniverseVaults).where(eq(omniverseVaults.id, id));
+    if (vault) {
+      const failedAttempts = (parseInt(vault.failedAttempts || '0') + 1).toString();
+      await db.update(omniverseVaults)
+        .set({ failedAttempts, updatedAt: new Date() })
+        .where(eq(omniverseVaults.id, id));
+    }
+  }
+  
+  async resetFailedAttempts(id: string) {
+    await db.update(omniverseVaults)
+      .set({ failedAttempts: '0', updatedAt: new Date() })
+      .where(eq(omniverseVaults.id, id));
+  }
+  
+  // Vault Transaction methods
+  async getVaultTransactions(vaultId: string, limit = 100) {
+    return await db.select().from(vaultTransactions)
+      .where(eq(vaultTransactions.vaultId, vaultId))
+      .orderBy(desc(vaultTransactions.timestamp))
+      .limit(limit);
+  }
+  
+  async createVaultTransaction(transaction: InsertVaultTransaction) {
+    const [created] = await db.insert(vaultTransactions).values(transaction).returning();
+    return created;
+  }
+  
+  async updateVaultTransaction(id: string, updates: Partial<InsertVaultTransaction>) {
+    const [updated] = await db.update(vaultTransactions)
+      .set(updates)
+      .where(eq(vaultTransactions.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Vault Asset methods
+  async getVaultAssets(vaultId: string) {
+    return await db.select().from(vaultAssets)
+      .where(eq(vaultAssets.vaultId, vaultId))
+      .orderBy(desc(vaultAssets.usdValue));
+  }
+  
+  async createVaultAsset(asset: InsertVaultAsset) {
+    const [created] = await db.insert(vaultAssets).values(asset).returning();
+    return created;
+  }
+  
+  async updateVaultAsset(id: string, updates: Partial<InsertVaultAsset>) {
+    const [updated] = await db.update(vaultAssets)
+      .set({ ...updates, lastUpdated: new Date() })
+      .where(eq(vaultAssets.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Vault Security Log methods
+  async getVaultSecurityLogs(vaultId: string, limit = 100) {
+    return await db.select().from(vaultSecurityLogs)
+      .where(eq(vaultSecurityLogs.vaultId, vaultId))
+      .orderBy(desc(vaultSecurityLogs.timestamp))
+      .limit(limit);
+  }
+  
+  async createVaultSecurityLog(log: InsertVaultSecurityLog) {
+    const [created] = await db.insert(vaultSecurityLogs).values(log).returning();
+    return created;
+  }
+  
+  // Vault Backup methods
+  async getVaultBackups(vaultId: string) {
+    return await db.select().from(vaultBackups)
+      .where(eq(vaultBackups.vaultId, vaultId))
+      .orderBy(desc(vaultBackups.createdAt));
+  }
+  
+  async createVaultBackup(backup: InsertVaultBackup) {
+    const [created] = await db.insert(vaultBackups).values(backup).returning();
     return created;
   }
 }
