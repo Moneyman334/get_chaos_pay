@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useWeb3 } from "@/hooks/useWeb3";
+import { useWeb3 } from "@/hooks/use-web3";
 import { Lock, Unlock, Shield, Eye, EyeOff, AlertTriangle, Check, X, KeyRound, Database, Activity, Archive, Zap } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -48,6 +48,20 @@ export default function OmniverseVault() {
       setVaultId(vault.id);
     }
   }, [vault]);
+
+  // Clear unlock state when wallet address changes
+  useEffect(() => {
+    setIsUnlocked(false);
+    setMasterPassword("");
+  }, [address]);
+
+  // Clear unlock state when vault becomes locked
+  useEffect(() => {
+    if (vault?.isLocked) {
+      setIsUnlocked(false);
+      setMasterPassword("");
+    }
+  }, [vault?.isLocked]);
 
   // Create vault mutation
   const createVaultMutation = useMutation({
@@ -224,8 +238,8 @@ export default function OmniverseVault() {
     );
   }
 
-  // Vault Unlock Screen
-  if (!isUnlocked && vault.isLocked === 'true') {
+  // Vault Lockout Screen - shown when vault is locked due to failed attempts
+  if (!isUnlocked && vault.isLocked) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 flex items-center justify-center p-6">
         <Card className="max-w-md w-full bg-slate-900/80 border-red-500/30 backdrop-blur">
