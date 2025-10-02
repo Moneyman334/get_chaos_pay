@@ -3239,8 +3239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get discount codes
-  app.get("/api/discounts", async (req, res) => {
+  // Get discount codes (admin only)
+  app.get("/api/discounts", isAuthenticated, isAdmin, async (req, res) => {
     try {
       const codes = await dbClient.select().from(discountCodes)
         .where(eq(discountCodes.isActive, "true"));
