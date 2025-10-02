@@ -545,6 +545,173 @@ export default function TradingTerminal() {
           </div>
         </div>
 
+        {/* Market Heatmap */}
+        <Card className="bg-slate-900/50 border-purple-500/20 backdrop-blur-sm mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-purple-400" />
+              Market Heatmap
+            </CardTitle>
+            <CardDescription>Visual performance across all assets (24h change)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {coinsData?.isLoading ? (
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                {Array.from({ length: 24 }).map((_, i) => (
+                  <div key={i} className="h-24 bg-slate-800/30 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2" data-testid="market-heatmap">
+                {coinsData?.data?.slice(0, 32).map((coin: any) => {
+                  const change = parseFloat(coin.price_change_percentage_24h || 0);
+                  const getHeatColor = (change: number) => {
+                    const intensity = Math.min(Math.abs(change) / 10, 1);
+                    if (change > 0) {
+                      return `rgba(34, 197, 94, ${0.1 + intensity * 0.9})`;
+                    } else if (change < 0) {
+                      return `rgba(239, 68, 68, ${0.1 + intensity * 0.9})`;
+                    }
+                    return 'rgba(148, 163, 184, 0.1)';
+                  };
+
+                  return (
+                    <div
+                      key={coin.id}
+                      className="relative group cursor-pointer rounded-lg p-2 transition-all hover:scale-105 border border-slate-700/30"
+                      style={{ backgroundColor: getHeatColor(change) }}
+                      data-testid={`heatmap-${coin.symbol}`}
+                    >
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-white uppercase">{coin.symbol}</p>
+                        <p className={`text-sm font-semibold mt-1 ${
+                          change > 0 ? 'text-green-400' : change < 0 ? 'text-red-400' : 'text-slate-400'
+                        }`}>
+                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                        </p>
+                      </div>
+                      
+                      {/* Tooltip on hover */}
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                        <div className="bg-slate-900 border border-purple-500/30 rounded-lg p-3 shadow-xl min-w-[180px]">
+                          <p className="text-sm font-semibold text-white">{coin.name}</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            ${parseFloat(coin.current_price).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            MCap: ${(coin.market_cap / 1e9).toFixed(2)}B
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Order Book Visualization */}
+        <Card className="bg-slate-900/50 border-purple-500/20 backdrop-blur-sm mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LineChart className="h-5 w-5 text-cyan-400" />
+              Order Book Depth
+            </CardTitle>
+            <CardDescription>Real-time bid/ask depth for {selectedCoin.toUpperCase()}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6" data-testid="order-book">
+              {/* Bids (Buy Orders) */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-green-400 mb-3">Bids (Buy)</h3>
+                <div className="space-y-1">
+                  {[
+                    { price: 43250.50, amount: 2.45, total: 105963.73 },
+                    { price: 43248.20, amount: 1.82, total: 78711.72 },
+                    { price: 43245.00, amount: 3.21, total: 138816.45 },
+                    { price: 43242.80, amount: 0.95, total: 41080.66 },
+                    { price: 43240.00, amount: 1.67, total: 72210.80 },
+                  ].map((order, i) => (
+                    <div
+                      key={`bid-${i}`}
+                      className="relative flex justify-between items-center text-xs p-2 rounded"
+                      data-testid={`bid-${i}`}
+                    >
+                      <div className="absolute inset-0 bg-green-500/10 rounded" 
+                           style={{ width: `${(order.amount / 3.5) * 100}%` }} />
+                      <span className="relative z-10 text-green-400 font-mono">{order.price.toFixed(2)}</span>
+                      <span className="relative z-10 text-slate-300">{order.amount.toFixed(2)}</span>
+                      <span className="relative z-10 text-slate-400">{order.total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Asks (Sell Orders) */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-red-400 mb-3">Asks (Sell)</h3>
+                <div className="space-y-1">
+                  {[
+                    { price: 43255.00, amount: 1.85, total: 80021.75 },
+                    { price: 43257.50, amount: 2.13, total: 92138.48 },
+                    { price: 43260.00, amount: 0.78, total: 33742.80 },
+                    { price: 43262.80, amount: 3.04, total: 131518.91 },
+                    { price: 43265.00, amount: 1.42, total: 61436.30 },
+                  ].map((order, i) => (
+                    <div
+                      key={`ask-${i}`}
+                      className="relative flex justify-between items-center text-xs p-2 rounded"
+                      data-testid={`ask-${i}`}
+                    >
+                      <div className="absolute inset-0 bg-red-500/10 rounded" 
+                           style={{ width: `${(order.amount / 3.5) * 100}%` }} />
+                      <span className="relative z-10 text-red-400 font-mono">{order.price.toFixed(2)}</span>
+                      <span className="relative z-10 text-slate-300">{order.amount.toFixed(2)}</span>
+                      <span className="relative z-10 text-slate-400">{order.total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Depth Chart */}
+            <div className="mt-6 h-[200px]" data-testid="depth-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={[
+                  { price: 43200, bids: 0, asks: 0 },
+                  { price: 43220, bids: 5.2, asks: 0 },
+                  { price: 43240, bids: 12.8, asks: 0 },
+                  { price: 43250, bids: 18.5, asks: 18.2 },
+                  { price: 43260, bids: 0, asks: 25.3 },
+                  { price: 43280, bids: 0, asks: 32.1 },
+                  { price: 43300, bids: 0, asks: 35.8 },
+                ]}>
+                  <defs>
+                    <linearGradient id="bidGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="askGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="price" stroke="#94a3b8" tick={{ fontSize: 12 }} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                    labelStyle={{ color: '#e2e8f0' }}
+                  />
+                  <Area type="stepAfter" dataKey="bids" stroke="#22c55e" fill="url(#bidGradient)" />
+                  <Area type="stepBefore" dataKey="asks" stroke="#ef4444" fill="url(#askGradient)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* News Feed */}
         <Card className="bg-slate-900/50 border-purple-500/20 backdrop-blur-sm">
           <CardHeader>
