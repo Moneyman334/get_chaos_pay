@@ -86,12 +86,9 @@ export default function BotConfig() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: ConfigFormData) => {
-      return await apiRequest('/api/bot/config', {
-        method: 'POST',
-        body: JSON.stringify({
-          userId: mockUserId,
-          ...data
-        })
+      return await apiRequest('POST', '/api/bot/config', {
+        userId: mockUserId,
+        ...data
       });
     },
     onSuccess: () => {

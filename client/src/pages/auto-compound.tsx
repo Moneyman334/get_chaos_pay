@@ -50,7 +50,7 @@ export default function AutoCompoundPage() {
   // Stake mutation
   const stakeMutation = useMutation({
     mutationFn: async ({ poolId, amount }: { poolId: string; amount: string }) => {
-      return apiRequest(`/api/auto-compound/pools/${poolId}/stake`, "POST", {
+      return apiRequest("POST", `/api/auto-compound/pools/${poolId}/stake`, {
         walletAddress: account,
         initialStake: amount,
       });
@@ -77,7 +77,7 @@ export default function AutoCompoundPage() {
   // Withdraw mutation
   const withdrawMutation = useMutation({
     mutationFn: async (stakeId: string) => {
-      return apiRequest(`/api/auto-compound/stakes/${stakeId}/withdraw`, "POST", {
+      return apiRequest("POST", `/api/auto-compound/stakes/${stakeId}/withdraw`, {
         walletAddress: account
       });
     },

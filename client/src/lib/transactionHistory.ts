@@ -415,7 +415,7 @@ export class TransactionHistoryService {
       }));
 
       // Use bulk upsert endpoint for efficient storage
-      const response = await apiRequest('/api/transactions/bulk', 'POST', bulkData);
+      const response = await apiRequest('POST', '/api/transactions/bulk', bulkData);
       
       if (!response.ok) {
         const errorText = await response.text();
