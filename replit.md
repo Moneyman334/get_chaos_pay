@@ -54,6 +54,15 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 - **Blockchain-Native Payment System**: Instant settlement, no chargebacks, lower fees, multi-chain support (Ethereum, Base, Polygon, Sepolia). Includes product management, shopping cart, multi-payment options, blockchain verification, and order management.
 - **Advanced E-commerce Features**: Multi-currency & stablecoin support, discount codes, gift cards, invoice/payment links, refund system, wallet-based loyalty points, customer tier system, blockchain-verified product reviews, wishlist, recently viewed products, subscription/recurring payments, affiliate/referral system, flash sales, pre-order system, product variants, AI-powered product recommendations, abandoned cart recovery, and on-chain NFT receipts.
 
+### Live Market & Trading Monitoring
+- **Live Crypto Market** (/live-crypto) - Real-time cryptocurrency market data for 100+ cryptocurrencies via CoinGecko API with:
+  - Auto-refresh (30s) and manual refresh controls
+  - Live price updates with 24h change indicators and mini sparkline charts
+  - Market statistics (24h volume, market cap, circulating supply)
+  - Favorites system with localStorage persistence
+  - Search and filtering capabilities
+  - **Sentinel Bot Trading Activity Feed**: Real-time display of automated bot trades with 10s polling, showing trading pairs, buy/sell indicators, execution prices, amounts, status badges, and trade reasoning. Fully integrated with manual and auto-refresh controls.
+
 ### Comprehensive Frontend Pages (23 Total)
 1. **Products Catalog** (/products) - Advanced filtering, search, grid/list view, price range filtering, category selection, featured products, stock indicators
 2. **Wishlist** (/wishlist) - Save products, remove items, wallet-based persistence, quick add to cart, stock monitoring
