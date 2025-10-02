@@ -4569,6 +4569,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ===== LIVE CRYPTO PRICES ROUTES =====
+  
+  // Get live crypto prices (from CoinGecko)
+  app.get("/api/live-prices", async (req, res) => {
+    try {
+      const { fetchLivePrices } = await import("./price-service");
+      const limit = parseInt(req.query.limit as string) || 100;
+      
+      const prices = await fetchLivePrices();
+      const limitedPrices = prices.slice(0, limit);
+      
+      res.json({
+        success: true,
+        data: limitedPrices,
+        timestamp: new Date().toISOString(),
+        count: limitedPrices.length
+      });
+    } catch (error) {
+      console.error("Failed to fetch live prices:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch live prices",
+        data: []
+      });
+    }
+  });
+  
   const httpServer = createServer(app);
   return httpServer;
 }
