@@ -58,6 +58,7 @@ import BridgeTrackerPage from "@/pages/bridge-tracker";
 import TradingSignalsPage from "@/pages/trading-signals";
 import LiveCryptoPage from "@/pages/live-crypto";
 import TradingTerminal from "@/pages/trading-terminal";
+import OmniverseVaultPage from "@/pages/omniverse-vault";
 import NotFound from "@/pages/not-found";
 import EnhancedConnectionModal from "@/components/enhanced-connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -126,6 +127,7 @@ function Router() {
       <Route path="/trading-signals" component={TradingSignalsPage} />
       <Route path="/live-crypto" component={LiveCryptoPage} />
       <Route path="/trading-terminal" component={TradingTerminal} />
+      <Route path="/vault" component={OmniverseVaultPage} />
       <Route component={NotFound} />
     </Switch>
   );
