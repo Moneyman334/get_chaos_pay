@@ -72,6 +72,7 @@ import NetworkStatus from "@/components/network-status";
 import OnboardingTour from "@/components/onboarding-tour";
 import LaunchBanner from "@/components/launch-banner";
 import Footer from "@/components/footer";
+import { DemoModeProvider } from "@/hooks/use-demo-mode";
 
 function Router() {
   return (
@@ -207,7 +208,9 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <DemoModeProvider>
+        <AppContent />
+      </DemoModeProvider>
     </QueryClientProvider>
   );
 }

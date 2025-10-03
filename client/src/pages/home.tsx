@@ -9,6 +9,7 @@ import {
 import { Link } from "wouter";
 import { useWeb3 } from "@/hooks/use-web3";
 import SEO from "@/components/seo";
+import DemoModeToggle from "@/components/demo-mode-toggle";
 
 export default function HomePage() {
   const { isConnected, connectWallet } = useWeb3();
@@ -196,7 +197,7 @@ export default function HomePage() {
           </div>
 
           {/* Trust Indicators */}
-          <div className="flex flex-wrap items-center justify-center gap-6 mb-16 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-6 mb-12 text-sm">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-green-500" />
               <span className="text-muted-foreground">Military-Grade Security</span>
@@ -213,6 +214,11 @@ export default function HomePage() {
               <Award className="h-5 w-5 text-purple-500" />
               <span className="text-muted-foreground">Production Ready</span>
             </div>
+          </div>
+
+          {/* Demo Mode Toggle */}
+          <div className="flex justify-center mb-16">
+            <DemoModeToggle />
           </div>
 
           {/* Feature Grid */}
