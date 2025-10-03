@@ -1,4 +1,4 @@
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { TwitterApi } from 'twitter-api-v2';
 import { storage } from './storage';
 
@@ -11,6 +11,7 @@ interface TwitterCredentials {
 
 class SocialMediaScheduler {
   private isRunning: boolean = false;
+  private cronJobs: ScheduledTask[] = [];
 
   async postToTwitter(credentials: TwitterCredentials, content: string, accountUsername: string): Promise<{ success: boolean; postUrl?: string; externalPostId?: string; error?: string }> {
     try {
@@ -56,6 +57,12 @@ class SocialMediaScheduler {
 
       for (const post of duePosts) {
         try {
+          if (!post.accountId) {
+            console.log(`⚠️  Skipping post ${post.id} - no account ID`);
+            await storage.updateScheduledPost(post.id, { status: 'failed' });
+            continue;
+          }
+          
           const account = await storage.getSocialAccount(post.accountId);
           
           if (!account || account.isActive !== 'true') {
@@ -184,18 +191,27 @@ class SocialMediaScheduler {
   start() {
     console.log('🎬 Starting Social Media Scheduler...');
     
-    cron.schedule('0 */3 * * *', async () => {
+    const job1 = cron.schedule('0 */3 * * *', async () => {
       console.log('⏰ 3-hour cron job triggered');
       await this.processScheduledPosts();
     });
+    this.cronJobs.push(job1);
 
-    cron.schedule('*/5 * * * *', async () => {
+    const job2 = cron.schedule('*/5 * * * *', async () => {
       await this.processScheduledPosts();
     });
+    this.cronJobs.push(job2);
 
     console.log('✅ Social Media Scheduler started successfully');
     console.log('📅 Will post every 3 hours at: 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00');
     console.log('🔍 Checking for due posts every 5 minutes');
+  }
+
+  stop() {
+    console.log('🛑 Stopping Social Media Scheduler...');
+    this.cronJobs.forEach(job => job.stop());
+    this.cronJobs = [];
+    console.log('✅ Social Media Scheduler stopped');
   }
 }
 

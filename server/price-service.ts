@@ -31,10 +31,21 @@ export interface LiveCryptoData {
 }
 
 const PRICES: Record<string, CryptoPrice> = {
-  ETH: { usd: 2500, lastUpdated: new Date(), usd_24h_change: 2.5 },
-  USDC: { usd: 1.0, lastUpdated: new Date(), usd_24h_change: 0.01 },
-  DAI: { usd: 1.0, lastUpdated: new Date(), usd_24h_change: -0.02 },
-  USDT: { usd: 1.0, lastUpdated: new Date(), usd_24h_change: 0.0 },
+  BTC: { usd: 40000, lastUpdated: new Date(), usd_24h_change: 0 },
+  ETH: { usd: 2500, lastUpdated: new Date(), usd_24h_change: 0 },
+  SOL: { usd: 100, lastUpdated: new Date(), usd_24h_change: 0 },
+  USDC: { usd: 1.0, lastUpdated: new Date(), usd_24h_change: 0 },
+  USDT: { usd: 1.0, lastUpdated: new Date(), usd_24h_change: 0 },
+  DAI: { usd: 1.0, lastUpdated: new Date(), usd_24h_change: 0 },
+  MATIC: { usd: 0.8, lastUpdated: new Date(), usd_24h_change: 0 },
+  BNB: { usd: 300, lastUpdated: new Date(), usd_24h_change: 0 },
+  LTC: { usd: 70, lastUpdated: new Date(), usd_24h_change: 0 },
+  DOGE: { usd: 0.08, lastUpdated: new Date(), usd_24h_change: 0 },
+  XRP: { usd: 0.5, lastUpdated: new Date(), usd_24h_change: 0 },
+  ADA: { usd: 0.35, lastUpdated: new Date(), usd_24h_change: 0 },
+  AVAX: { usd: 25, lastUpdated: new Date(), usd_24h_change: 0 },
+  DOT: { usd: 5, lastUpdated: new Date(), usd_24h_change: 0 },
+  LINK: { usd: 12, lastUpdated: new Date(), usd_24h_change: 0 },
 };
 
 let livePriceCache: LiveCryptoData[] = [];
@@ -51,7 +62,15 @@ export function convertUsdToCrypto(usdAmount: number, cryptoSymbol: string): str
     throw new Error(`Price not available for ${cryptoSymbol}`);
   }
   
+  if (!price.usd || price.usd <= 0) {
+    throw new Error(`Invalid price data for ${cryptoSymbol}: price is ${price.usd}. Please try again later.`);
+  }
+  
   const cryptoAmount = usdAmount / price.usd;
+  if (!isFinite(cryptoAmount)) {
+    throw new Error(`Failed to calculate conversion for ${cryptoSymbol}: invalid result`);
+  }
+  
   return cryptoAmount.toFixed(8);
 }
 
@@ -61,8 +80,21 @@ export function convertCryptoToUsd(cryptoAmount: string, cryptoSymbol: string): 
     throw new Error(`Price not available for ${cryptoSymbol}`);
   }
   
+  if (!price.usd || price.usd <= 0) {
+    throw new Error(`Invalid price data for ${cryptoSymbol}: price is ${price.usd}. Please try again later.`);
+  }
+  
   const amount = parseFloat(cryptoAmount);
-  return amount * price.usd;
+  if (isNaN(amount)) {
+    throw new Error(`Invalid crypto amount: ${cryptoAmount}`);
+  }
+  
+  const usdValue = amount * price.usd;
+  if (!isFinite(usdValue)) {
+    throw new Error(`Failed to calculate conversion for ${cryptoSymbol}: invalid result`);
+  }
+  
+  return usdValue;
 }
 
 export function getAllPrices(): Record<string, CryptoPrice> {
@@ -117,15 +149,19 @@ export async function fetchLivePrices(): Promise<LiveCryptoData[]> {
     livePriceCache = data;
     lastFetchTime = now;
     
-    data.slice(0, 10).forEach(coin => {
+    const symbolsToTrack = ['BTC', 'ETH', 'SOL', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'LTC', 'DOGE', 'XRP', 'ADA', 'AVAX', 'DOT', 'LINK'];
+    
+    data.forEach(coin => {
       const symbol = coin.symbol.toUpperCase();
-      PRICES[symbol] = {
-        usd: coin.current_price,
-        lastUpdated: new Date(coin.last_updated),
-        usd_24h_change: coin.price_change_percentage_24h_in_currency,
-        usd_24h_vol: coin.total_volume,
-        usd_market_cap: coin.market_cap,
-      };
+      if (symbolsToTrack.includes(symbol) && coin.current_price > 0) {
+        PRICES[symbol] = {
+          usd: coin.current_price,
+          lastUpdated: new Date(coin.last_updated),
+          usd_24h_change: coin.price_change_percentage_24h_in_currency,
+          usd_24h_vol: coin.total_volume,
+          usd_market_cap: coin.market_cap,
+        };
+      }
     });
 
     return data;
@@ -138,3 +174,83 @@ export async function fetchLivePrices(): Promise<LiveCryptoData[]> {
 export function getLivePriceCache(): LiveCryptoData[] {
   return livePriceCache;
 }
+
+class PriceUpdateService {
+  private updateInterval: NodeJS.Timeout | null = null;
+  private isRunning = false;
+  private readonly UPDATE_INTERVAL_MS = 30000;
+
+  async start() {
+    if (this.isRunning) {
+      console.log('💰 Price update service already running');
+      return;
+    }
+
+    console.log('💰 Starting price update service...');
+    this.isRunning = true;
+
+    await this.updatePrices();
+
+    this.updateInterval = setInterval(async () => {
+      await this.updatePrices();
+    }, this.UPDATE_INTERVAL_MS);
+
+    console.log('💰 Price update service started (updates every 30 seconds)');
+  }
+
+  stop() {
+    if (!this.isRunning) {
+      return;
+    }
+
+    console.log('💰 Stopping price update service...');
+    
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+
+    this.isRunning = false;
+    console.log('💰 Price update service stopped');
+  }
+
+  private async updatePrices() {
+    let retries = 3;
+    let lastError: any;
+    
+    while (retries > 0) {
+      try {
+        const prices = await fetchLivePrices();
+        if (prices && prices.length > 0) {
+          const validPrices = Object.entries(PRICES).filter(([_, p]) => p.usd > 0).length;
+          console.log(`💰 Updated prices for ${validPrices}/${Object.keys(PRICES).length} cryptocurrencies`);
+          return;
+        } else {
+          lastError = new Error('CoinGecko returned empty data');
+        }
+      } catch (error) {
+        lastError = error;
+      }
+      
+      retries--;
+      if (retries > 0) {
+        const backoffMs = (4 - retries) * 2000;
+        console.log(`💰 Price fetch failed, retrying in ${backoffMs}ms... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+    }
+    
+    console.error('💰 Failed to update crypto prices after retries (using cached/fallback values):', lastError instanceof Error ? lastError.message : lastError);
+  }
+
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      lastUpdate: lastFetchTime > 0 ? new Date(lastFetchTime) : null,
+      cachedCoins: livePriceCache.length,
+      updateInterval: this.UPDATE_INTERVAL_MS,
+    };
+  }
+}
+
+export const priceUpdateService = new PriceUpdateService();

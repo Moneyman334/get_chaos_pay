@@ -140,6 +140,14 @@ app.use((req, res, next) => {
   } catch (error) {
     console.error("Failed to start social media scheduler:", error);
   }
+  
+  // Start price update service
+  const { priceUpdateService } = await import("./price-service");
+  try {
+    await priceUpdateService.start();
+  } catch (error) {
+    console.error("Failed to start price update service:", error);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -234,6 +242,16 @@ app.use((req, res, next) => {
         } catch (error) {
           hasErrors = true;
           console.error('Error stopping social scheduler:', error);
+        }
+
+        // Stop price update service
+        try {
+          const { priceUpdateService } = await import("./price-service");
+          priceUpdateService.stop();
+          log('Price update service stopped');
+        } catch (error) {
+          hasErrors = true;
+          console.error('Error stopping price update service:', error);
         }
 
         cleanupComplete = true;

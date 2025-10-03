@@ -54,10 +54,31 @@ export default function BridgePage() {
   const destName = supportedChains.find(c => c.id === destChain)?.name || "";
   const tokenInfo = supportedTokens.find(t => t.symbol === selectedToken);
   
+  // Dynamic gas fee estimation based on network
+  const estimateGasFee = (chainId: string, token: string): string => {
+    const gasEstimates: Record<string, { native: number, erc20: number }> = {
+      '0x1': { native: 0.003, erc20: 0.005 },
+      '0x89': { native: 0.0002, erc20: 0.0003 },
+      '0x38': { native: 0.0003, erc20: 0.0004 },
+      '0xa4b1': { native: 0.0001, erc20: 0.0002 },
+      '0xa': { native: 0.0001, erc20: 0.0002 },
+      '0x2105': { native: 0.00008, erc20: 0.00015 },
+    };
+    
+    const chainEstimate = gasEstimates[chainId] || { native: 0.001, erc20: 0.002 };
+    const isNativeToken = (
+      (chainId === '0x1' && token === 'ETH') ||
+      (chainId === '0x89' && token === 'MATIC') ||
+      (chainId === '0x38' && token === 'BNB')
+    );
+    
+    return isNativeToken ? chainEstimate.native.toFixed(6) : chainEstimate.erc20.toFixed(6);
+  };
+  
   // Calculate fees (0.1% bridge fee + gas estimate)
   const bridgeFeePercent = 0.1;
   const bridgeFee = amount ? (parseFloat(amount) * bridgeFeePercent / 100).toFixed(6) : "0";
-  const gasFee = "0.002"; // Estimated gas fee
+  const gasFee = estimateGasFee(sourceChain, selectedToken);
   const totalFee = amount ? (parseFloat(bridgeFee) + parseFloat(gasFee)).toFixed(6) : "0";
   const amountReceived = amount ? (parseFloat(amount) - parseFloat(totalFee)).toFixed(6) : "0";
   
