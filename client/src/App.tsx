@@ -65,6 +65,7 @@ import { useWalletSession } from "@/hooks/use-wallet-session";
 import { ErrorBoundary } from "@/components/error-boundary";
 import LoadingOverlay from "@/components/loading-overlay";
 import NetworkStatus from "@/components/network-status";
+import OnboardingTour from "@/components/onboarding-tour";
 
 function Router() {
   return (
@@ -180,6 +181,9 @@ function AppContent() {
 
         {/* Empire Oracle - Available on all pages */}
         <EmpireOracle />
+        
+        {/* Onboarding Tour for new users */}
+        <OnboardingTour />
         </div>
       </TooltipProvider>
     </ErrorBoundary>
