@@ -2873,6 +2873,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Auto-connect Twitter using environment secrets
+  app.post("/api/social/accounts/auto-connect-twitter", async (req, res) => {
+    try {
+      const { userId, accountName } = req.body;
+      
+      if (!userId || !accountName) {
+        return res.status(400).json({ error: "userId and accountName are required" });
+      }
+      
+      // Get Twitter credentials from environment
+      const apiKey = process.env.TWITTER_API_KEY;
+      const apiSecret = process.env.TWITTER_API_SECRET;
+      const accessToken = process.env.TWITTER_ACCESS_TOKEN;
+      const accessTokenSecret = process.env.TWITTER_ACCESS_TOKEN_SECRET;
+      
+      if (!apiKey || !apiSecret || !accessToken || !accessTokenSecret) {
+        return res.status(400).json({ 
+          error: "Missing Twitter credentials in Replit Secrets. Please add: TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET" 
+        });
+      }
+      
+      const account = await storage.createSocialAccount({
+        userId,
+        platform: "twitter",
+        accountName,
+        apiKey,
+        apiSecret,
+        accessToken,
+        accessTokenSecret,
+        isActive: "true"
+      });
+      
+      // Redact credentials
+      const safeAccount = {
+        ...account,
+        apiKey: '***',
+        apiSecret: '***',
+        accessToken: '***',
+        accessTokenSecret: '***'
+      };
+      
+      res.json(safeAccount);
+    } catch (error) {
+      console.error("Failed to auto-connect Twitter:", error);
+      res.status(500).json({ error: "Failed to auto-connect Twitter account" });
+    }
+  });
+
   // Create social account
   app.post("/api/social/accounts", async (req, res) => {
     try {

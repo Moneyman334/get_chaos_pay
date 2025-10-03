@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Twitter, Calendar, Clock, CheckCircle, XCircle, Trash2, Plus, Settings, History } from "lucide-react";
+import { Twitter, Calendar, Clock, CheckCircle, XCircle, Trash2, Plus, Settings, History, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -58,6 +58,39 @@ export default function SocialAutomation() {
     }
   });
   
+  const autoConnectMutation = useMutation({
+    mutationFn: async (accountName: string) => {
+      return await apiRequest('POST', '/api/social/accounts/auto-connect-twitter', {
+        userId,
+        accountName
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/social/accounts', userId] });
+      toast({ 
+        title: "Success!", 
+        description: "Twitter account connected automatically using your Replit secrets" 
+      });
+      setIsAddAccountOpen(false);
+      setNewAccount({
+        platform: "twitter",
+        accountName: "",
+        apiKey: "",
+        apiSecret: "",
+        accessToken: "",
+        accessTokenSecret: ""
+      });
+    },
+    onError: (error: any) => {
+      console.error("Auto-connect error:", error);
+      toast({ 
+        title: "Auto-Connect Failed", 
+        description: error?.message || "Make sure you have TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, and TWITTER_ACCESS_TOKEN_SECRET in your Replit Secrets", 
+        variant: "destructive" 
+      });
+    }
+  });
+
   const createAccountMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest('POST', '/api/social/accounts', data);
@@ -183,6 +216,41 @@ export default function SocialAutomation() {
                     <DialogDescription>Connect your Twitter/X account for automated posting</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
+                    <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                      <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-purple-400" />
+                        Quick Connect with Replit Secrets
+                      </h4>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Automatically use your Twitter credentials from Replit Secrets
+                      </p>
+                      <div className="space-y-2">
+                        <Input 
+                          value={newAccount.accountName} 
+                          onChange={(e) => setNewAccount({...newAccount, accountName: e.target.value})} 
+                          placeholder="@youraccount" 
+                          data-testid="input-auto-account-name"
+                        />
+                        <Button 
+                          onClick={() => newAccount.accountName && autoConnectMutation.mutate(newAccount.accountName)}
+                          className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                          disabled={!newAccount.accountName || autoConnectMutation.isPending}
+                          data-testid="button-auto-connect"
+                        >
+                          {autoConnectMutation.isPending ? "Connecting..." : "🚀 Auto-Connect Twitter"}
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Or enter manually</span>
+                      </div>
+                    </div>
+                    
                     <div>
                       <Label>Platform</Label>
                       <Select value={newAccount.platform} onValueChange={(v) => setNewAccount({...newAccount, platform: v})}>
