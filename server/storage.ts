@@ -369,6 +369,11 @@ export interface IStorage {
   getCampaignBudgets(campaignId: string): Promise<any[]>;
   createMarketingBudget(budget: any): Promise<any>;
   updateMarketingBudget(id: string, updates: any): Promise<any | undefined>;
+  
+  // Command Center / Platform Statistics methods
+  getPlatformStatistics(): Promise<any>;
+  getPlatformActivity(limit: number): Promise<any[]>;
+  getSystemHealth(): Promise<any>;
 }
 
 export class MemStorage implements IStorage {
@@ -756,6 +761,11 @@ export class MemStorage implements IStorage {
     this.userTokens.set(id, updatedUserToken);
     return updatedUserToken;
   }
+  
+  // Stub methods for MemStorage (not fully implemented)
+  async getPlatformStatistics() { return {}; }
+  async getPlatformActivity(limit: number) { return []; }
+  async getSystemHealth() { return { status: 'healthy' }; }
 }
 
 // Database connection setup
@@ -2480,6 +2490,155 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(marketingBudgets.id, id))
       .returning();
     return updated;
+  }
+  
+  // Command Center / Platform Statistics methods
+  async getPlatformStatistics() {
+    // Aggregate stats from various tables
+    const [
+      totalTransactions,
+      totalOrders,
+      totalTrades,
+      totalStakes,
+      totalCampaigns
+    ] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(transactions),
+      db.select({ count: sql<number>`count(*)::int` }).from(orders),
+      db.select({ count: sql<number>`count(*)::int` }).from(botTrades),
+      db.select({ count: sql<number>`count(*)::int` }).from(autoCompoundStakes),
+      db.select({ count: sql<number>`count(*)::int` }).from(marketingCampaigns)
+    ]);
+    
+    // Calculate TVL (Total Value Locked) from stakes
+    const tvlResult = await db.select({
+      total: sql<string>`COALESCE(SUM(CAST(current_balance AS NUMERIC)), 0)::text`
+    }).from(autoCompoundStakes).where(eq(autoCompoundStakes.status, 'active'));
+    
+    // Get order revenue
+    const revenueResult = await db.select({
+      total: sql<string>`COALESCE(SUM(total_amount), 0)::text`
+    }).from(orders).where(eq(orders.status, 'completed'));
+    
+    // Get active users count (unique wallet addresses)
+    const activeUsersResult = await db.select({
+      count: sql<number>`COUNT(DISTINCT wallet_address)::int`
+    }).from(autoCompoundStakes).where(eq(autoCompoundStakes.status, 'active'));
+    
+    return {
+      totalTransactions: totalTransactions[0]?.count || 0,
+      totalOrders: totalOrders[0]?.count || 0,
+      totalTrades: totalTrades[0]?.count || 0,
+      totalStakes: totalStakes[0]?.count || 0,
+      totalCampaigns: totalCampaigns[0]?.count || 0,
+      tvl: tvlResult[0]?.total || '0',
+      totalRevenue: revenueResult[0]?.total || '0',
+      activeUsers: activeUsersResult[0]?.count || 0
+    };
+  }
+  
+  async getPlatformActivity(limit: number = 50) {
+    // Get recent activities from various sources and combine them
+    const activities: any[] = [];
+    
+    // Recent transactions
+    const recentTransactions = await db.select().from(transactions)
+      .orderBy(desc(transactions.timestamp))
+      .limit(Math.floor(limit / 3));
+    
+    recentTransactions.forEach(tx => {
+      activities.push({
+        id: tx.id,
+        type: 'transaction',
+        description: `Transaction of ${tx.amount} wei`,
+        amount: tx.amount,
+        status: tx.status,
+        timestamp: tx.timestamp,
+        metadata: { hash: tx.hash, network: tx.network }
+      });
+    });
+    
+    // Recent trades
+    const recentTrades = await db.select().from(botTrades)
+      .orderBy(desc(botTrades.createdAt))
+      .limit(Math.floor(limit / 3));
+    
+    recentTrades.forEach(trade => {
+      activities.push({
+        id: trade.id,
+        type: 'trade',
+        description: `${trade.side.toUpperCase()} ${trade.amount} ${trade.tradingPair}`,
+        amount: trade.total,
+        status: trade.status,
+        timestamp: trade.createdAt,
+        metadata: { pair: trade.tradingPair, side: trade.side }
+      });
+    });
+    
+    // Recent stakes
+    const recentStakes = await db.select().from(autoCompoundStakes)
+      .orderBy(desc(autoCompoundStakes.stakedAt))
+      .limit(Math.floor(limit / 3));
+    
+    recentStakes.forEach(stake => {
+      activities.push({
+        id: stake.id,
+        type: 'stake',
+        description: `Staked ${stake.initialStake} ETH`,
+        amount: stake.currentBalance,
+        status: stake.status,
+        timestamp: stake.stakedAt,
+        metadata: { poolId: stake.poolId, apy: stake.effectiveApy }
+      });
+    });
+    
+    // Sort all activities by timestamp descending
+    activities.sort((a, b) => {
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return timeB - timeA;
+    });
+    
+    return activities.slice(0, limit);
+  }
+  
+  async getSystemHealth() {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    
+    // Check recent activity
+    const [recentTransactions, recentTrades, recentCompounds] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(transactions)
+        .where(sql`${transactions.timestamp} > ${oneHourAgo}`),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(botTrades)
+        .where(sql`${botTrades.createdAt} > ${oneHourAgo}`),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(compoundEvents)
+        .where(sql`${compoundEvents.compoundedAt} > ${oneHourAgo}`)
+    ]);
+    
+    return {
+      status: 'healthy',
+      timestamp: now,
+      services: {
+        transactions: {
+          status: 'operational',
+          recentActivity: recentTransactions[0]?.count || 0
+        },
+        trading: {
+          status: 'operational',
+          recentActivity: recentTrades[0]?.count || 0
+        },
+        autoCompound: {
+          status: 'operational',
+          recentActivity: recentCompounds[0]?.count || 0
+        },
+        marketing: {
+          status: 'operational'
+        }
+      }
+    };
   }
 }
 

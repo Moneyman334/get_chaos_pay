@@ -4745,6 +4745,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ===== COMMAND CENTER / PLATFORM STATISTICS ROUTES =====
+  
+  // Get platform statistics
+  app.get("/api/command-center/stats", async (req, res) => {
+    try {
+      // Aggregate stats from existing tables
+      const stats = await storage.getPlatformStatistics();
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch platform stats:", error);
+      res.status(500).json({ error: "Failed to fetch platform statistics" });
+    }
+  });
+  
+  // Get recent platform activity feed
+  app.get("/api/command-center/activity", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const activity = await storage.getPlatformActivity(limit);
+      res.json(activity);
+    } catch (error) {
+      console.error("Failed to fetch activity:", error);
+      res.status(500).json({ error: "Failed to fetch activity" });
+    }
+  });
+  
+  // Get system health metrics
+  app.get("/api/command-center/health", async (req, res) => {
+    try {
+      const health = await storage.getSystemHealth();
+      res.json(health);
+    } catch (error) {
+      console.error("Failed to fetch system health:", error);
+      res.status(500).json({ error: "Failed to fetch system health" });
+    }
+  });
+  
   const httpServer = createServer(app);
   return httpServer;
 }
