@@ -24,7 +24,8 @@ import {
   Crown,
   Trophy,
   Zap,
-  Twitter
+  Twitter,
+  BarChart3
 } from "lucide-react";
 
 interface NavigationProps {
@@ -39,6 +40,7 @@ const navigationItems = [
   { path: "/vaults", label: "House Vaults", icon: Trophy },
   { path: "/sentinel-bot", label: "Sentinel Bot", icon: Bot },
   { path: "/social-automation", label: "Social Automation", icon: Twitter },
+  { path: "/marketing", label: "Marketing Plans", icon: BarChart3 },
   { path: "/games", label: "Games", icon: Gamepad2 },
   { path: "/wallet", label: "Wallet", icon: Wallet },
   { path: "/deposits", label: "Deposits", icon: ArrowDownToLine },

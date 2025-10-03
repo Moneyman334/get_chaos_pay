@@ -26,6 +26,7 @@ import EmpireDashboard from "@/pages/empire-dashboard";
 import HouseVaultsPage from "@/pages/house-vaults";
 import AutoCompoundPage from "@/pages/auto-compound";
 import SocialAutomationPage from "@/pages/social-automation";
+import MarketingDashboardPage from "@/pages/marketing-dashboard";
 import AdminDiscountsPage from "@/pages/admin-discounts";
 import AdminFlashSalesPage from "@/pages/admin-flash-sales";
 import SubscriptionsPage from "@/pages/subscriptions";
@@ -98,6 +99,7 @@ function Router() {
       <Route path="/bot-config" component={BotConfigPage} />
       <Route path="/play" component={GamePlayPage} />
       <Route path="/social-automation" component={SocialAutomationPage} />
+      <Route path="/marketing" component={MarketingDashboardPage} />
       <Route path="/admin/discounts" component={AdminDiscountsPage} />
       <Route path="/admin/flash-sales" component={AdminFlashSalesPage} />
       <Route path="/subscriptions" component={SubscriptionsPage} />
