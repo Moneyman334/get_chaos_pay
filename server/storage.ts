@@ -87,7 +87,16 @@ import {
   type Payment,
   type InsertPayment,
   type PaymentWebhook,
-  type InsertPaymentWebhook
+  type InsertPaymentWebhook,
+  marketingCampaigns,
+  campaignMetrics,
+  marketingBudgets,
+  type MarketingCampaign,
+  type InsertMarketingCampaign,
+  type CampaignMetric,
+  type InsertCampaignMetric,
+  type MarketingBudget,
+  type InsertMarketingBudget
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -342,6 +351,24 @@ export interface IStorage {
   getUnprocessedWebhooks(provider: string): Promise<PaymentWebhook[]>;
   createPaymentWebhook(webhook: InsertPaymentWebhook): Promise<PaymentWebhook>;
   markWebhookProcessed(id: string, error?: string): Promise<PaymentWebhook | undefined>;
+  
+  // Marketing Campaign methods
+  getAllMarketingCampaigns(userId: string): Promise<any[]>;
+  getMarketingCampaign(id: string): Promise<any | undefined>;
+  getCampaignsByStatus(userId: string, status: string): Promise<any[]>;
+  createMarketingCampaign(campaign: any): Promise<any>;
+  updateMarketingCampaign(id: string, updates: any): Promise<any | undefined>;
+  deleteMarketingCampaign(id: string): Promise<boolean>;
+  
+  // Campaign Metrics methods
+  getCampaignMetrics(campaignId: string, limit?: number): Promise<any[]>;
+  createCampaignMetric(metric: any): Promise<any>;
+  getCampaignAnalytics(campaignId: string): Promise<any>;
+  
+  // Marketing Budget methods
+  getCampaignBudgets(campaignId: string): Promise<any[]>;
+  createMarketingBudget(budget: any): Promise<any>;
+  updateMarketingBudget(id: string, updates: any): Promise<any | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -2351,6 +2378,106 @@ export class PostgreSQLStorage implements IStorage {
         ...(error && { error })
       })
       .where(eq(paymentWebhooks.id, id))
+      .returning();
+    return updated;
+  }
+  
+  // Marketing Campaign methods
+  async getAllMarketingCampaigns(userId: string) {
+    return await db.select().from(marketingCampaigns)
+      .where(eq(marketingCampaigns.userId, userId))
+      .orderBy(desc(marketingCampaigns.createdAt));
+  }
+  
+  async getMarketingCampaign(id: string) {
+    const [campaign] = await db.select().from(marketingCampaigns)
+      .where(eq(marketingCampaigns.id, id))
+      .limit(1);
+    return campaign;
+  }
+  
+  async getCampaignsByStatus(userId: string, status: string) {
+    return await db.select().from(marketingCampaigns)
+      .where(sql`${marketingCampaigns.userId} = ${userId} AND ${marketingCampaigns.status} = ${status}`)
+      .orderBy(desc(marketingCampaigns.createdAt));
+  }
+  
+  async createMarketingCampaign(campaign: InsertMarketingCampaign) {
+    const [created] = await db.insert(marketingCampaigns).values(campaign).returning();
+    return created;
+  }
+  
+  async updateMarketingCampaign(id: string, updates: Partial<InsertMarketingCampaign>) {
+    const [updated] = await db.update(marketingCampaigns)
+      .set({ ...updates, updatedAt: sql`now()` })
+      .where(eq(marketingCampaigns.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async deleteMarketingCampaign(id: string) {
+    await db.delete(marketingCampaigns).where(eq(marketingCampaigns.id, id));
+    return true;
+  }
+  
+  // Campaign Metrics methods
+  async getCampaignMetrics(campaignId: string, limit: number = 30) {
+    return await db.select().from(campaignMetrics)
+      .where(eq(campaignMetrics.campaignId, campaignId))
+      .orderBy(desc(campaignMetrics.date))
+      .limit(limit);
+  }
+  
+  async createCampaignMetric(metric: InsertCampaignMetric) {
+    const [created] = await db.insert(campaignMetrics).values(metric).returning();
+    return created;
+  }
+  
+  async getCampaignAnalytics(campaignId: string) {
+    const metrics = await this.getCampaignMetrics(campaignId, 90);
+    const campaign = await this.getMarketingCampaign(campaignId);
+    
+    // Calculate aggregate metrics
+    const totalImpressions = metrics.reduce((sum, m) => sum + Number(m.impressions || 0), 0);
+    const totalClicks = metrics.reduce((sum, m) => sum + Number(m.clicks || 0), 0);
+    const totalConversions = metrics.reduce((sum, m) => sum + Number(m.conversions || 0), 0);
+    const totalRevenue = metrics.reduce((sum, m) => sum + Number(m.revenue || 0), 0);
+    
+    const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0';
+    const avgConversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : '0';
+    const roi = campaign && Number(campaign.spent) > 0 
+      ? (((totalRevenue - Number(campaign.spent)) / Number(campaign.spent)) * 100).toFixed(2)
+      : '0';
+    
+    return {
+      campaign,
+      totalImpressions: totalImpressions.toString(),
+      totalClicks: totalClicks.toString(),
+      totalConversions: totalConversions.toString(),
+      totalRevenue: totalRevenue.toString(),
+      avgCtr,
+      avgConversionRate,
+      roi,
+      metricsHistory: metrics
+    };
+  }
+  
+  // Marketing Budget methods
+  async getCampaignBudgets(campaignId: string) {
+    return await db.select().from(marketingBudgets)
+      .where(eq(marketingBudgets.campaignId, campaignId))
+      .orderBy(marketingBudgets.startDate);
+  }
+  
+  async createMarketingBudget(budget: InsertMarketingBudget) {
+    const [created] = await db.insert(marketingBudgets).values(budget).returning();
+    return created;
+  }
+  
+  async updateMarketingBudget(id: string, updates: Partial<InsertMarketingBudget>) {
+    const [updated] = await db.update(marketingBudgets)
+      .set(updates)
+      .where(eq(marketingBudgets.id, id))
       .returning();
     return updated;
   }
