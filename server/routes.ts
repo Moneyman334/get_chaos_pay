@@ -4594,7 +4594,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const data = campaignSchema.parse(req.body);
-      const campaign = await storage.createMarketingCampaign(data);
+      
+      const { startDate, endDate, ...restData } = data;
+      const campaignData: Omit<typeof restData, never> & { startDate?: Date; endDate?: Date } = {
+        ...restData,
+        ...(startDate && { startDate: new Date(startDate) }),
+        ...(endDate && { endDate: new Date(endDate) })
+      };
+      
+      const campaign = await storage.createMarketingCampaign(campaignData);
       res.json(campaign);
     } catch (error) {
       console.error("Failed to create campaign:", error);
@@ -4606,7 +4614,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/marketing/campaign/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const campaign = await storage.updateMarketingCampaign(id, req.body);
+      
+      const updateSchema = z.object({
+        name: z.string().optional(),
+        description: z.string().optional(),
+        type: z.string().optional(),
+        status: z.string().optional(),
+        budget: z.string().optional(),
+        spent: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        targetAudience: z.string().optional(),
+        channels: z.array(z.string()).optional(),
+        goals: z.any().optional()
+      });
+      
+      const data = updateSchema.parse(req.body);
+      
+      const { startDate, endDate, ...restData } = data;
+      const updateData: Omit<typeof restData, never> & { startDate?: Date; endDate?: Date } = {
+        ...restData,
+        ...(startDate && { startDate: new Date(startDate) }),
+        ...(endDate && { endDate: new Date(endDate) })
+      };
+      
+      const campaign = await storage.updateMarketingCampaign(id, updateData);
       if (!campaign) {
         return res.status(404).json({ error: "Campaign not found" });
       }
