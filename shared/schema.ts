@@ -1647,3 +1647,118 @@ export type InsertCampaignMetric = z.infer<typeof insertCampaignMetricSchema>;
 export type CampaignMetric = typeof campaignMetrics.$inferSelect;
 export type InsertMarketingBudget = z.infer<typeof insertMarketingBudgetSchema>;
 export type MarketingBudget = typeof marketingBudgets.$inferSelect;
+
+// ===== WALLET SECURITY TABLES =====
+
+export const walletSecurityPolicies = pgTable("wallet_security_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull().unique(),
+  userId: varchar("user_id").references(() => users.id),
+  multiSigEnabled: text("multi_sig_enabled").notNull().default("false"),
+  hardwareWalletEnabled: text("hardware_wallet_enabled").notNull().default("false"),
+  txSimulationEnabled: text("tx_simulation_enabled").notNull().default("true"),
+  aiSentinelEnabled: text("ai_sentinel_enabled").notNull().default("true"),
+  dailySpendingLimit: text("daily_spending_limit").default("10"), // In ETH
+  requireApprovalAbove: text("require_approval_above").default("5"), // In ETH
+  sessionTimeout: text("session_timeout").default("3600"), // In seconds
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  walletLowerIdx: index("wallet_security_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  userIdx: index("wallet_security_user_idx").on(table.userId),
+}));
+
+export const trustedAddresses = pgTable("trusted_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  trustedAddress: text("trusted_address").notNull(),
+  label: text("label"), // Optional label for the address
+  addedAt: timestamp("added_at").defaultNow(),
+}, (table) => ({
+  walletTrustedIdx: index("trusted_addresses_wallet_trusted_idx").on(table.walletAddress, table.trustedAddress),
+  walletLowerIdx: index("trusted_addresses_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  trustedLowerIdx: index("trusted_addresses_trusted_lower_idx").on(sql`lower(${table.trustedAddress})`),
+}));
+
+export const blockedAddresses = pgTable("blocked_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  blockedAddress: text("blocked_address").notNull(),
+  reason: text("reason"), // Why was it blocked
+  blockedAt: timestamp("blocked_at").defaultNow(),
+}, (table) => ({
+  walletBlockedIdx: index("blocked_addresses_wallet_blocked_idx").on(table.walletAddress, table.blockedAddress),
+  walletLowerIdx: index("blocked_addresses_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  blockedLowerIdx: index("blocked_addresses_blocked_lower_idx").on(sql`lower(${table.blockedAddress})`),
+}));
+
+export const securityAlerts = pgTable("security_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  type: text("type").notNull(), // spending_limit, suspicious_tx, blocked_address, unusual_pattern
+  severity: text("severity").notNull().default("medium"), // low, medium, high, critical
+  title: text("title").notNull(),
+  description: text("description"),
+  metadata: jsonb("metadata"), // Additional context
+  isRead: text("is_read").notNull().default("false"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  walletIdx: index("security_alerts_wallet_idx").on(table.walletAddress),
+  walletLowerIdx: index("security_alerts_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  typeIdx: index("security_alerts_type_idx").on(table.type),
+  severityIdx: index("security_alerts_severity_idx").on(table.severity),
+  createdAtIdx: index("security_alerts_created_at_idx").on(table.createdAt),
+}));
+
+export const transactionLimits = pgTable("transaction_limits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  totalSpent: text("total_spent").notNull().default("0"), // In ETH
+  transactionCount: text("transaction_count").notNull().default("0"),
+  limitReached: text("limit_reached").notNull().default("false"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  walletPeriodIdx: index("transaction_limits_wallet_period_idx").on(table.walletAddress, table.periodStart),
+  walletLowerIdx: index("transaction_limits_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+}));
+
+// Insert schemas
+export const insertWalletSecurityPolicySchema = createInsertSchema(walletSecurityPolicies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTrustedAddressSchema = createInsertSchema(trustedAddresses).omit({
+  id: true,
+  addedAt: true,
+});
+
+export const insertBlockedAddressSchema = createInsertSchema(blockedAddresses).omit({
+  id: true,
+  blockedAt: true,
+});
+
+export const insertSecurityAlertSchema = createInsertSchema(securityAlerts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTransactionLimitSchema = createInsertSchema(transactionLimits).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type InsertWalletSecurityPolicy = z.infer<typeof insertWalletSecurityPolicySchema>;
+export type WalletSecurityPolicy = typeof walletSecurityPolicies.$inferSelect;
+export type InsertTrustedAddress = z.infer<typeof insertTrustedAddressSchema>;
+export type TrustedAddress = typeof trustedAddresses.$inferSelect;
+export type InsertBlockedAddress = z.infer<typeof insertBlockedAddressSchema>;
+export type BlockedAddress = typeof blockedAddresses.$inferSelect;
+export type InsertSecurityAlert = z.infer<typeof insertSecurityAlertSchema>;
+export type SecurityAlert = typeof securityAlerts.$inferSelect;
+export type InsertTransactionLimit = z.infer<typeof insertTransactionLimitSchema>;
+export type TransactionLimit = typeof transactionLimits.$inferSelect;
