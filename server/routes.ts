@@ -4533,6 +4533,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch recent activity" });
     }
   });
+
+  // ===== MARKETING CAMPAIGN ROUTES =====
+  
+  // Get all marketing campaigns for a user
+  app.get("/api/marketing/campaigns/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const campaigns = await storage.getAllMarketingCampaigns(userId);
+      res.json(campaigns);
+    } catch (error) {
+      console.error("Failed to fetch campaigns:", error);
+      res.status(500).json({ error: "Failed to fetch campaigns" });
+    }
+  });
+  
+  // Get single campaign
+  app.get("/api/marketing/campaign/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const campaign = await storage.getMarketingCampaign(id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error("Failed to fetch campaign:", error);
+      res.status(500).json({ error: "Failed to fetch campaign" });
+    }
+  });
+  
+  // Get campaigns by status
+  app.get("/api/marketing/campaigns/:userId/status/:status", async (req, res) => {
+    try {
+      const { userId, status } = req.params;
+      const campaigns = await storage.getCampaignsByStatus(userId, status);
+      res.json(campaigns);
+    } catch (error) {
+      console.error("Failed to fetch campaigns by status:", error);
+      res.status(500).json({ error: "Failed to fetch campaigns" });
+    }
+  });
+  
+  // Create marketing campaign
+  app.post("/api/marketing/campaigns", async (req, res) => {
+    try {
+      const campaignSchema = z.object({
+        userId: z.string(),
+        name: z.string(),
+        description: z.string().optional(),
+        type: z.string(),
+        status: z.string().optional(),
+        budget: z.string().optional(),
+        spent: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        targetAudience: z.string().optional(),
+        channels: z.array(z.string()).optional(),
+        goals: z.any().optional()
+      });
+      
+      const data = campaignSchema.parse(req.body);
+      const campaign = await storage.createMarketingCampaign(data);
+      res.json(campaign);
+    } catch (error) {
+      console.error("Failed to create campaign:", error);
+      res.status(500).json({ error: "Failed to create campaign" });
+    }
+  });
+  
+  // Update marketing campaign
+  app.patch("/api/marketing/campaign/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const campaign = await storage.updateMarketingCampaign(id, req.body);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error("Failed to update campaign:", error);
+      res.status(500).json({ error: "Failed to update campaign" });
+    }
+  });
+  
+  // Delete marketing campaign
+  app.delete("/api/marketing/campaign/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteMarketingCampaign(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete campaign:", error);
+      res.status(500).json({ error: "Failed to delete campaign" });
+    }
+  });
+  
+  // Get campaign analytics
+  app.get("/api/marketing/campaign/:id/analytics", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const analytics = await storage.getCampaignAnalytics(id);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Failed to fetch analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+  
+  // Get campaign metrics
+  app.get("/api/marketing/campaign/:id/metrics", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 30;
+      const metrics = await storage.getCampaignMetrics(id, limit);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Failed to fetch metrics:", error);
+      res.status(500).json({ error: "Failed to fetch metrics" });
+    }
+  });
+  
+  // Create campaign metric
+  app.post("/api/marketing/campaign/:id/metrics", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const metricSchema = z.object({
+        impressions: z.string().optional(),
+        clicks: z.string().optional(),
+        conversions: z.string().optional(),
+        revenue: z.string().optional(),
+        ctr: z.string().optional(),
+        conversionRate: z.string().optional(),
+        roi: z.string().optional(),
+        date: z.string(),
+        metadata: z.any().optional()
+      });
+      
+      const data = metricSchema.parse(req.body);
+      const metric = await storage.createCampaignMetric({ ...data, campaignId: id });
+      res.json(metric);
+    } catch (error) {
+      console.error("Failed to create metric:", error);
+      res.status(500).json({ error: "Failed to create metric" });
+    }
+  });
+  
+  // Get campaign budgets
+  app.get("/api/marketing/campaign/:id/budgets", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const budgets = await storage.getCampaignBudgets(id);
+      res.json(budgets);
+    } catch (error) {
+      console.error("Failed to fetch budgets:", error);
+      res.status(500).json({ error: "Failed to fetch budgets" });
+    }
+  });
+  
+  // Create campaign budget
+  app.post("/api/marketing/campaign/:id/budgets", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const budgetSchema = z.object({
+        channel: z.string(),
+        allocated: z.string(),
+        spent: z.string().optional(),
+        startDate: z.string(),
+        endDate: z.string().optional(),
+        notes: z.string().optional()
+      });
+      
+      const data = budgetSchema.parse(req.body);
+      const budget = await storage.createMarketingBudget({ ...data, campaignId: id });
+      res.json(budget);
+    } catch (error) {
+      console.error("Failed to create budget:", error);
+      res.status(500).json({ error: "Failed to create budget" });
+    }
+  });
   
   const httpServer = createServer(app);
   return httpServer;
