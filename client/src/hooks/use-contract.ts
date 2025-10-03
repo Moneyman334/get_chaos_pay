@@ -73,8 +73,11 @@ export function useContract(contractId?: string) {
     queryKey: ['contract', contractId],
     queryFn: async () => {
       if (!contractId) return null;
-      const response = await apiRequest(`/api/contracts/${contractId}`);
-      return response as Contract;
+      const response = await fetch(`/api/contracts/${contractId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error(`Failed to fetch contract: ${response.status}`);
+      return await response.json() as Contract;
     },
     enabled: !!contractId,
   });
@@ -86,10 +89,12 @@ export function useContract(contractId?: string) {
   } = useQuery({
     queryKey: ['contracts', account],
     queryFn: async () => {
-      const response = await apiRequest('/api/contracts', {
-        params: { userId: account },
+      const response = await fetch(`/api/contracts?userId=${account}`, {
+        credentials: 'include'
       });
-      return response.contracts as Contract[];
+      if (!response.ok) throw new Error(`Failed to fetch contracts: ${response.status}`);
+      const data = await response.json();
+      return data.contracts as Contract[];
     },
     enabled: !!account,
   });
@@ -97,11 +102,8 @@ export function useContract(contractId?: string) {
   // Create contract mutation
   const createContractMutation = useMutation({
     mutationFn: async (contractData: InsertContract) => {
-      const response = await apiRequest('/api/contracts', {
-        method: 'POST',
-        body: contractData,
-      });
-      return response as Contract;
+      const response = await apiRequest('POST', '/api/contracts', contractData);
+      return await response.json() as Contract;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
@@ -122,11 +124,8 @@ export function useContract(contractId?: string) {
   // Update contract mutation
   const updateContractMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<InsertContract> }) => {
-      const response = await apiRequest(`/api/contracts/${id}`, {
-        method: 'PATCH',
-        body: updates,
-      });
-      return response as Contract;
+      const response = await apiRequest('PATCH', `/api/contracts/${id}`, updates);
+      return await response.json() as Contract;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
@@ -148,7 +147,7 @@ export function useContract(contractId?: string) {
   // Delete contract mutation
   const deleteContractMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest(`/api/contracts/${id}`, { method: 'DELETE' });
+      await apiRequest('DELETE', `/api/contracts/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
@@ -397,10 +396,7 @@ export function useContract(contractId?: string) {
         };
 
         try {
-          await apiRequest(`/api/contracts/${contract.id}/calls`, {
-            method: 'POST',
-            body: callData,
-          });
+          await apiRequest('POST', `/api/contracts/${contract.id}/calls`, callData);
         } catch (error) {
           console.error('Failed to record contract call:', error);
         }
@@ -450,13 +446,11 @@ export function useContract(contractId?: string) {
     queryKey: ['contract-calls', contractId, callHistory.page],
     queryFn: async () => {
       if (!contractId) return { calls: [], pagination: { hasMore: false } };
-      const response = await apiRequest(`/api/contracts/${contractId}/calls`, {
-        params: { 
-          page: callHistory.page, 
-          limit: 25 
-        },
+      const response = await fetch(`/api/contracts/${contractId}/calls?page=${callHistory.page}&limit=25`, {
+        credentials: 'include'
       });
-      return response;
+      if (!response.ok) throw new Error(`Failed to fetch contract calls: ${response.status}`);
+      return await response.json();
     },
     enabled: !!contractId,
   });

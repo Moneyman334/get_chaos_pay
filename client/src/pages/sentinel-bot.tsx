@@ -25,14 +25,11 @@ export default function SentinelBot() {
       const mockUserId = 'user_' + Math.random().toString(36).substr(2, 9);
       const plan = plans.find((p: any) => p.id === planType);
       
-      return await apiRequest('/api/bot/subscribe', {
-        method: 'POST',
-        body: JSON.stringify({
-          userId: mockUserId,
-          planType,
-          price: plan.price,
-          currency: 'USD'
-        })
+      return await apiRequest('POST', '/api/bot/subscribe', {
+        userId: mockUserId,
+        planType,
+        price: plan.price,
+        currency: 'USD'
       });
     },
     onSuccess: () => {

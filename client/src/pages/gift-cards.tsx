@@ -70,7 +70,12 @@ export default function GiftCards() {
         throw new Error("Please enter a gift card code");
       }
 
-      const response = await apiRequest('GET', `/api/giftcards/${redeemCode.trim()}`);
+      const response = await fetch(`/api/giftcards/${redeemCode.trim()}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch gift card: ${response.status}`);
+      }
       return response;
     },
     onSuccess: (data: any) => {
