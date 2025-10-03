@@ -60,12 +60,21 @@ export default function SocialAutomation() {
   
   const autoConnectMutation = useMutation({
     mutationFn: async (accountName: string) => {
-      return await apiRequest('POST', '/api/social/accounts/auto-connect-twitter', {
-        userId,
-        accountName
-      });
+      console.log("🚀 Attempting auto-connect for:", accountName);
+      try {
+        const result = await apiRequest('POST', '/api/social/accounts/auto-connect-twitter', {
+          userId,
+          accountName
+        });
+        console.log("✅ Auto-connect successful:", result);
+        return result;
+      } catch (err) {
+        console.error("❌ Auto-connect failed:", err);
+        throw err;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("🎉 Success callback triggered", data);
       queryClient.invalidateQueries({ queryKey: ['/api/social/accounts', userId] });
       toast({ 
         title: "Success!", 
@@ -82,10 +91,11 @@ export default function SocialAutomation() {
       });
     },
     onError: (error: any) => {
-      console.error("Auto-connect error:", error);
+      console.error("🔥 Error callback triggered:", error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
       toast({ 
         title: "Auto-Connect Failed", 
-        description: error?.message || "Make sure you have TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, and TWITTER_ACCESS_TOKEN_SECRET in your Replit Secrets", 
+        description: error?.message || error?.toString() || "Make sure you have all 4 Twitter secrets in Replit (TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET)", 
         variant: "destructive" 
       });
     }
