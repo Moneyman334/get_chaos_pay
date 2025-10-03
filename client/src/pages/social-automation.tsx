@@ -29,7 +29,7 @@ export default function SocialAutomation() {
     accessTokenSecret: ""
   });
   
-  const userId = "mock-user-id";
+  const userId = "user_demo";
   
   const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ['/api/social/accounts', userId],
