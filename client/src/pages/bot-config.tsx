@@ -88,7 +88,15 @@ export default function BotConfig() {
     mutationFn: async (data: ConfigFormData) => {
       return await apiRequest('POST', '/api/bot/config', {
         userId: mockUserId,
-        ...data
+        subscriptionId: 'demo_subscription',
+        coinbaseApiKey: data.coinbaseApiKey,
+        coinbaseApiSecret: data.coinbaseApiSecret,
+        coinbasePassphrase: data.coinbasePassphrase,
+        maxPositionSize: data.maxPositionSize.toString(),
+        maxDailyLoss: data.maxDailyTrades.toString(),
+        stopLossPercent: data.stopLossPercentage.toString(),
+        takeProfitPercent: data.takeProfitPercentage.toString(),
+        enableNotifications: data.enableNotifications ? 'true' : 'false',
       });
     },
     onSuccess: () => {
