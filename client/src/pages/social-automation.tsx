@@ -76,9 +76,10 @@ export default function SocialAutomation() {
     onSuccess: (data) => {
       console.log("🎉 Success callback triggered", data);
       queryClient.invalidateQueries({ queryKey: ['/api/social/accounts', userId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/social/posts', userId] });
       toast({ 
-        title: "Success!", 
-        description: "Twitter account connected automatically using your Replit secrets" 
+        title: "🎉 Auto-Posting Enabled!", 
+        description: "Twitter connected! Your first CODEX promotional tweet will post in 3 hours, then every 3 hours automatically." 
       });
       setIsAddAccountOpen(false);
       setNewAccount({

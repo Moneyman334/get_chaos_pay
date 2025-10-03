@@ -16,6 +16,7 @@ import rateLimit from "express-rate-limit";
 import slowDown from "express-slow-down";
 import bcrypt from "bcrypt";
 import { getChainConfig, verifyTransaction, getAllSupportedChains } from "./blockchain-config";
+import { socialScheduler } from "./social-scheduler";
 
 // Ethereum address validation schema
 const ethereumAddressSchema = z.string()
@@ -2904,6 +2905,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         accessTokenSecret,
         isActive: "true"
       });
+      
+      // Start auto-posting cycle (first post in 3 hours)
+      console.log('🚀 Starting auto-posting for Twitter account:', accountName);
+      await socialScheduler.createAutoScheduledPost(account.id, userId);
       
       // Redact credentials
       const safeAccount = {

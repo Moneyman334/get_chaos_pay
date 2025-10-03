@@ -56,6 +56,12 @@ class SocialMediaScheduler {
 
       for (const post of duePosts) {
         try {
+          if (!post.accountId || !post.userId) {
+            console.log(`⚠️  Skipping post ${post.id} - missing accountId or userId`);
+            await storage.updateScheduledPost(post.id, { status: 'failed' });
+            continue;
+          }
+
           const account = await storage.getSocialAccount(post.accountId);
           
           if (!account || account.isActive !== 'true') {
@@ -110,6 +116,12 @@ class SocialMediaScheduler {
               await storage.updateSocialAccount(account.id, {
                 lastPostedAt: new Date()
               });
+              
+              // If this was an auto-post, schedule the next one
+              if (post.postType === 'auto') {
+                console.log('🔄 Auto-post successful, scheduling next auto-post in 3 hours...');
+                await this.createAutoScheduledPost(post.accountId, post.userId);
+              }
             } else {
               console.log(`❌ Failed to post to Twitter: ${post.id} - ${result.error}`);
               
@@ -151,14 +163,14 @@ class SocialMediaScheduler {
       }
 
       const messages = [
-        '🚀 Building the future of Web3 with Chaos Empire! Join us on this cosmic journey. #Web3 #Crypto #Blockchain',
-        '💎 Experience the divine power of our Auto-Compound system. Your investments working 24/7! #DeFi #CryptoInvesting',
-        '🎮 House Vaults are live! Become the house and earn from casino profits. #CryptoGaming #PassiveIncome',
-        '⚡ Sentinel Auto Trading Bot: AI-powered strategies for maximum returns. #CryptoTrading #AutomatedTrading',
-        '🌟 Divine visual experience meets cutting-edge blockchain technology. #NFT #CryptoArt',
-        '🔥 Multi-chain wallet integration: ETH, BTC, SOL, and more! #MultiChain #CryptoWallet',
-        '💫 Create your own tokens and NFTs with our smart contract generators. #TokenCreator #NFTCreator',
-        '🎯 Join thousands of traders in the Chaos Empire ecosystem. #CryptoCommunity #Web3Gaming'
+        '🚀 CODEX - THE DOMINANT BLOCKCHAIN PLATFORM with 55+ production features! Join the revolution. #Web3 #Crypto #Blockchain',
+        '💎 Experience divine auto-compound yields on CODEX. Your investments working 24/7! #DeFi #CryptoInvesting',
+        '🎮 House Vaults live on CODEX! Become the house and earn from casino profits. #CryptoGaming #PassiveIncome',
+        '⚡ Sentinel AI Trading Bot on CODEX: Advanced strategies for maximum returns. #CryptoTrading #AutomatedTrading',
+        '🌟 CODEX combines epic visuals with cutting-edge blockchain tech. The future is here! #NFT #CryptoArt',
+        '🔥 Multi-chain wallet integration on CODEX: ETH, BTC, SOL, and more! #MultiChain #CryptoWallet',
+        '💫 Create tokens and NFTs instantly with CODEX smart contract generators. #TokenCreator #NFTCreator',
+        '🎯 Join thousands building their empire on CODEX - THE DOMINANT PLATFORM. #CryptoCommunity #Web3Gaming'
       ];
 
       const randomMessage = messages[Math.floor(Math.random() * messages.length)];
