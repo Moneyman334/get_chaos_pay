@@ -75,8 +75,13 @@ export default function SocialAutomation() {
         accessTokenSecret: ""
       });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to add social account", variant: "destructive" });
+    onError: (error: any) => {
+      console.error("Social account error:", error);
+      toast({ 
+        title: "Error", 
+        description: error?.message || "Failed to add social account. Please check your credentials.", 
+        variant: "destructive" 
+      });
     }
   });
   
@@ -117,6 +122,14 @@ export default function SocialAutomation() {
   });
   
   const handleCreateAccount = () => {
+    if (!newAccount.accountName || !newAccount.apiKey || !newAccount.apiSecret || !newAccount.accessToken || !newAccount.accessTokenSecret) {
+      toast({ 
+        title: "Missing Information", 
+        description: "Please fill in all required fields (Account Name, API Key, API Secret, Access Token, Access Token Secret)", 
+        variant: "destructive" 
+      });
+      return;
+    }
     createAccountMutation.mutate({ ...newAccount, userId });
   };
   
