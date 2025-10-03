@@ -4745,6 +4745,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // ===== SECURITY / WALLET ROUTES =====
+  
+  // Get security alerts (AI Sentinel monitoring)
+  app.get("/api/security/alerts", async (req, res) => {
+    try {
+      // Mock security alerts for now - in production, this would integrate with:
+      // - Blockchain threat intelligence feeds
+      // - Transaction pattern analysis
+      // - Smart contract security scanning
+      // - Phishing database lookups
+      const mockAlerts: any[] = [];
+      
+      res.json(mockAlerts);
+    } catch (error) {
+      console.error("Failed to fetch security alerts:", error);
+      res.status(500).json({ error: "Failed to fetch security alerts" });
+    }
+  });
+  
   // ===== COMMAND CENTER / PLATFORM STATISTICS ROUTES =====
   
   // Get platform statistics
