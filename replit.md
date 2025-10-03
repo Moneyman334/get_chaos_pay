@@ -55,13 +55,14 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 - **Advanced E-commerce Features**: Multi-currency & stablecoin support, discount codes, gift cards, invoice/payment links, refund system, wallet-based loyalty points, customer tier system, blockchain-verified product reviews, wishlist, recently viewed products, subscription/recurring payments, affiliate/referral system, flash sales, pre-order system, product variants, AI-powered product recommendations, abandoned cart recovery, and on-chain NFT receipts.
 
 ### Marketing & Analytics
+- **Command Center** (/command-center) - Real-time platform monitoring dashboard with live statistics (TVL, revenue, active users, total transactions/trades/stakes/orders/campaigns), auto-refreshing activity feed (5-second intervals) showing recent transactions/trades/stakes, system health monitoring with service status indicators, and aggregated metrics from all platform features. Mission control interface with cosmic theme and glassmorphism effects.
 - **Marketing Overview Dashboard** (/marketing-overview) - Comprehensive marketing intelligence dashboard with executive summary metrics (total budget, spent, remaining, active campaigns), budget utilization tracking with progress bars, top performing campaigns by utilization rate, campaign type analysis with ROI tracking, status breakdown (active/paused/completed/draft), performance analytics tabs, and channel-based insights
 - **Marketing Campaign Management** (/marketing) - Full-featured campaign management system with campaign creation wizard, campaign CRUD operations, budget and spending tracking, multi-channel support (Twitter, Discord, Telegram, Medium, etc.), target audience segmentation, campaign status management (active/paused/completed/draft), date-based scheduling, campaign analytics viewer, and campaign type categorization (social, content, email, paid, influencer, community)
 
 ### Social Media Automation
 - **Twitter Auto-Posting** - Automated Twitter posting system that posts promotional content every 3 hours using OAuth 1.0a credentials, rotating through 8 CODEX-specific promotional messages highlighting Web3 building, Auto-Compound, House Vaults, AI Trading, NFT creation, and multi-chain wallet features. Each successful auto-post automatically schedules the next post in the cycle.
 
-### Comprehensive Frontend Pages (25 Total)
+### Comprehensive Frontend Pages (26 Total)
 1. **Products Catalog** (/products) - Advanced filtering, search, grid/list view, price range filtering, category selection, featured products, stock indicators
 2. **Wishlist** (/wishlist) - Save products, remove items, wallet-based persistence, quick add to cart, stock monitoring
 3. **Customer Dashboard** (/dashboard) - Unified view of loyalty points, tier status, subscriptions, recent orders, account stats, spending analytics
@@ -87,6 +88,7 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 23. **Token Launchpad** (/token-launchpad) - Invest in new token launches (ICOs/IDOs), fair token distribution, vesting schedules, hard/soft caps, fundraising progress, token allocation, TGE (Token Generation Event), claim schedules, project categories, investment tracking, upcoming/active launches
 24. **Marketing Overview** (/marketing-overview) - Marketing intelligence dashboard with executive metrics, budget utilization tracking, top performing campaigns, channel analysis, campaign lifecycle distribution, performance analytics with tabs, ROI tracking across campaign types
 25. **Campaign Management** (/marketing) - Create and manage marketing campaigns, set budgets and schedules, track spending, define target audiences, select channels, monitor campaign status, view campaign analytics, delete campaigns
+26. **Command Center** (/command-center) - Real-time platform monitoring with live statistics, auto-refreshing activity feed, system health dashboard, aggregated metrics from all features, mission control interface
 
 # External Dependencies
 
