@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWeb3 } from "@/hooks/use-web3";
 import { 
@@ -31,39 +31,110 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function WalletPage() {
   const { account, balance, isConnected, connectWallet, disconnectWallet, network } = useWeb3();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("overview");
-
-  // Security settings state
-  const [multiSigEnabled, setMultiSigEnabled] = useState(false);
-  const [hardwareWalletEnabled, setHardwareWalletEnabled] = useState(false);
-  const [txSimulationEnabled, setTxSimulationEnabled] = useState(true);
-  const [aiSentinelEnabled, setAiSentinelEnabled] = useState(true);
-  const [spendingLimit, setSpendingLimit] = useState("10");
   const [whitelistAddress, setWhitelistAddress] = useState("");
+  const [blocklistAddress, setBlocklistAddress] = useState("");
 
-  // Security score calculation
+  // Load security policy from backend
+  const { data: policy, isLoading } = useQuery<any>({
+    queryKey: ['/api/security/policy', account],
+    enabled: !!account,
+    refetchInterval: 30000, // Refresh every 30s
+  });
+
+  // Load security alerts
+  const { data: alerts = [] } = useQuery<any[]>({
+    queryKey: ['/api/security/alerts', account],
+    enabled: !!account && policy?.aiSentinelEnabled,
+    refetchInterval: 10000, // Refresh every 10s
+  });
+
+  // Load whitelist
+  const { data: whitelist = [] } = useQuery<string[]>({
+    queryKey: ['/api/security/whitelist', account],
+    enabled: !!account,
+  });
+
+  // Update security policy mutation
+  const updatePolicyMutation = useMutation({
+    mutationFn: async (updates: any) => {
+      const response = await fetch(`/api/security/policy/${account}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) throw new Error('Failed to update policy');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/security/policy', account] });
+      queryClient.invalidateQueries({ queryKey: ['/api/security/alerts', account] });
+    },
+  });
+
+  // Add to whitelist mutation
+  const addWhitelistMutation = useMutation({
+    mutationFn: async (address: string) => {
+      const response = await fetch(`/api/security/whitelist/${account}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address }),
+      });
+      if (!response.ok) throw new Error('Failed to add to whitelist');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/security/whitelist', account] });
+      queryClient.invalidateQueries({ queryKey: ['/api/security/alerts', account] });
+      setWhitelistAddress("");
+      toast({
+        title: "Address Whitelisted",
+        description: "Address added to trusted list",
+      });
+    },
+  });
+
+  // Add to blacklist mutation
+  const addBlocklistMutation = useMutation({
+    mutationFn: async ({ address, reason }: { address: string; reason?: string }) => {
+      const response = await fetch(`/api/security/blacklist/${account}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, reason }),
+      });
+      if (!response.ok) throw new Error('Failed to block address');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/security/alerts', account] });
+      setBlocklistAddress("");
+      toast({
+        title: "Address Blocked",
+        description: "Address added to blocklist",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Calculate security score
   const calculateSecurityScore = () => {
-    let score = 30; // Base score
-    if (multiSigEnabled) score += 25;
-    if (hardwareWalletEnabled) score += 20;
-    if (txSimulationEnabled) score += 10;
-    if (aiSentinelEnabled) score += 15;
+    if (!policy) return 30;
+    let score = 30;
+    if (policy.multiSigEnabled) score += 25;
+    if (policy.hardwareWalletEnabled) score += 20;
+    if (policy.txSimulationEnabled) score += 10;
+    if (policy.aiSentinelEnabled) score += 15;
     return Math.min(score, 100);
   };
 
   const securityScore = calculateSecurityScore();
-
-  // Mock security alerts
-  const { data: securityAlerts = [] } = useQuery({
-    queryKey: ['/api/security/alerts'],
-    enabled: isConnected && aiSentinelEnabled,
-    refetchInterval: 10000,
-  });
 
   const copyAddress = () => {
     if (account) {
@@ -75,30 +146,20 @@ export default function WalletPage() {
     }
   };
 
-  const enableMultiSig = () => {
-    setMultiSigEnabled(true);
+  const toggleFeature = (feature: string, value: boolean) => {
+    updatePolicyMutation.mutate({ [feature]: value });
     toast({
-      title: "Multi-Signature Activated",
-      description: "Your wallet now requires 2-of-3 signatures for transactions",
+      title: "Security Updated",
+      description: `${feature} has been ${value ? 'enabled' : 'disabled'}`,
     });
   };
 
-  const connectHardwareWallet = () => {
-    setHardwareWalletEnabled(true);
+  const saveSpendingLimit = (limit: string) => {
+    updatePolicyMutation.mutate({ dailySpendingLimit: limit });
     toast({
-      title: "Hardware Wallet Connected",
-      description: "Ledger device successfully connected",
+      title: "Limit Updated",
+      description: `Daily spending limit set to ${limit} ETH`,
     });
-  };
-
-  const addToWhitelist = () => {
-    if (whitelistAddress) {
-      toast({
-        title: "Address Whitelisted",
-        description: `${whitelistAddress.slice(0, 10)}... added to trusted addresses`,
-      });
-      setWhitelistAddress("");
-    }
   };
 
   if (!isConnected) {
@@ -113,14 +174,14 @@ export default function WalletPage() {
               Empire Wallet
             </h1>
             <p className="text-muted-foreground text-lg">
-              The Most Secure Crypto Wallet in the Universe
+              Advanced Security Protection System
             </p>
           </div>
 
           <Card className="border-2 border-primary/20 shadow-2xl shadow-primary/20">
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Bulletproof Security</CardTitle>
-              <CardDescription>Connect to activate military-grade protection</CardDescription>
+              <CardTitle className="text-2xl">Military-Grade Security</CardTitle>
+              <CardDescription>Connect to activate advanced protection</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -152,10 +213,21 @@ export default function WalletPage() {
                 data-testid="button-connect-wallet"
               >
                 <Shield className="mr-2 h-5 w-5" />
-                Connect Bulletproof Wallet
+                Connect Secure Wallet
               </Button>
             </CardContent>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <Activity className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading security settings...</p>
         </div>
       </div>
     );
@@ -170,7 +242,7 @@ export default function WalletPage() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               Empire Wallet
             </h1>
-            <p className="text-muted-foreground">Bulletproof Security Fortress</p>
+            <p className="text-muted-foreground">Advanced Security Fortress</p>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="px-4 py-2 text-sm border-green-500/50 bg-green-500/10">
@@ -192,7 +264,7 @@ export default function WalletPage() {
                   <ShieldCheck className="h-6 w-6 text-primary" />
                   Security Score
                 </CardTitle>
-                <CardDescription>Your wallet's defense rating</CardDescription>
+                <CardDescription>Real-time wallet protection rating</CardDescription>
               </div>
               <div className="text-right">
                 <div className="text-4xl font-bold text-primary">{securityScore}</div>
@@ -217,7 +289,7 @@ export default function WalletPage() {
               </div>
               <div className={`text-center p-2 rounded ${securityScore === 100 ? 'bg-green-500/20 text-green-500' : 'bg-muted'}`}>
                 {securityScore === 100 ? <CheckCircle2 className="h-4 w-4 mx-auto mb-1" /> : <XCircle className="h-4 w-4 mx-auto mb-1" />}
-                Bulletproof
+                Fortress
               </div>
             </div>
           </CardContent>
@@ -284,41 +356,41 @@ export default function WalletPage() {
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-3">
-                      <Users className={`h-5 w-5 ${multiSigEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <Users className={`h-5 w-5 ${policy?.multiSigEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
                       <span className="font-medium">Multi-Signature</span>
                     </div>
-                    <Badge variant={multiSigEnabled ? "default" : "secondary"}>
-                      {multiSigEnabled ? "Active" : "Inactive"}
+                    <Badge variant={policy?.multiSigEnabled ? "default" : "secondary"}>
+                      {policy?.multiSigEnabled ? "Active" : "Inactive"}
                     </Badge>
                   </div>
 
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-3">
-                      <Lock className={`h-5 w-5 ${hardwareWalletEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <Lock className={`h-5 w-5 ${policy?.hardwareWalletEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
                       <span className="font-medium">Hardware Wallet</span>
                     </div>
-                    <Badge variant={hardwareWalletEnabled ? "default" : "secondary"}>
-                      {hardwareWalletEnabled ? "Connected" : "Not Connected"}
+                    <Badge variant={policy?.hardwareWalletEnabled ? "default" : "secondary"}>
+                      {policy?.hardwareWalletEnabled ? "Connected" : "Not Connected"}
                     </Badge>
                   </div>
 
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-3">
-                      <Eye className={`h-5 w-5 ${txSimulationEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <Eye className={`h-5 w-5 ${policy?.txSimulationEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
                       <span className="font-medium">TX Simulation</span>
                     </div>
-                    <Badge variant={txSimulationEnabled ? "default" : "secondary"}>
-                      {txSimulationEnabled ? "Enabled" : "Disabled"}
+                    <Badge variant={policy?.txSimulationEnabled ? "default" : "secondary"}>
+                      {policy?.txSimulationEnabled ? "Enabled" : "Disabled"}
                     </Badge>
                   </div>
 
                   <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div className="flex items-center gap-3">
-                      <Activity className={`h-5 w-5 ${aiSentinelEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <Activity className={`h-5 w-5 ${policy?.aiSentinelEnabled ? 'text-green-500' : 'text-muted-foreground'}`} />
                       <span className="font-medium">AI Sentinel</span>
                     </div>
-                    <Badge variant={aiSentinelEnabled ? "default" : "secondary"}>
-                      {aiSentinelEnabled ? "Monitoring" : "Disabled"}
+                    <Badge variant={policy?.aiSentinelEnabled ? "default" : "secondary"}>
+                      {policy?.aiSentinelEnabled ? "Monitoring" : "Disabled"}
                     </Badge>
                   </div>
                 </CardContent>
@@ -334,57 +406,41 @@ export default function WalletPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Multi-Sig */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-5 w-5 text-primary" />
-                        <h3 className="font-semibold">Multi-Signature Wallet</h3>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Require 2-of-3 signatures for transactions
-                      </p>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold">Multi-Signature Wallet</h3>
                     </div>
-                    <Switch 
-                      checked={multiSigEnabled} 
-                      onCheckedChange={setMultiSigEnabled}
-                      data-testid="switch-multisig"
-                    />
+                    <p className="text-sm text-muted-foreground">
+                      Require 2-of-3 signatures for transactions
+                    </p>
                   </div>
-                  {!multiSigEnabled && (
-                    <Button onClick={enableMultiSig} variant="outline" className="w-full" data-testid="button-enable-multisig">
-                      <Users className="mr-2 h-4 w-4" />
-                      Enable Multi-Sig Protection
-                    </Button>
-                  )}
+                  <Switch 
+                    checked={policy?.multiSigEnabled || false} 
+                    onCheckedChange={(val) => toggleFeature('multiSigEnabled', val)}
+                    data-testid="switch-multisig"
+                  />
                 </div>
 
                 <Separator />
 
                 {/* Hardware Wallet */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Lock className="h-5 w-5 text-primary" />
-                        <h3 className="font-semibold">Hardware Wallet</h3>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Connect Ledger or Trezor device
-                      </p>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold">Hardware Wallet</h3>
                     </div>
-                    <Switch 
-                      checked={hardwareWalletEnabled} 
-                      onCheckedChange={setHardwareWalletEnabled}
-                      data-testid="switch-hardware-wallet"
-                    />
+                    <p className="text-sm text-muted-foreground">
+                      Connect Ledger or Trezor device
+                    </p>
                   </div>
-                  {!hardwareWalletEnabled && (
-                    <Button onClick={connectHardwareWallet} variant="outline" className="w-full" data-testid="button-connect-hardware">
-                      <Lock className="mr-2 h-4 w-4" />
-                      Connect Hardware Wallet
-                    </Button>
-                  )}
+                  <Switch 
+                    checked={policy?.hardwareWalletEnabled || false} 
+                    onCheckedChange={(val) => toggleFeature('hardwareWalletEnabled', val)}
+                    data-testid="switch-hardware-wallet"
+                  />
                 </div>
 
                 <Separator />
@@ -401,8 +457,8 @@ export default function WalletPage() {
                     </p>
                   </div>
                   <Switch 
-                    checked={txSimulationEnabled} 
-                    onCheckedChange={setTxSimulationEnabled}
+                    checked={policy?.txSimulationEnabled || false} 
+                    onCheckedChange={(val) => toggleFeature('txSimulationEnabled', val)}
                     data-testid="switch-tx-simulation"
                   />
                 </div>
@@ -421,8 +477,8 @@ export default function WalletPage() {
                     </p>
                   </div>
                   <Switch 
-                    checked={aiSentinelEnabled} 
-                    onCheckedChange={setAiSentinelEnabled}
+                    checked={policy?.aiSentinelEnabled || false} 
+                    onCheckedChange={(val) => toggleFeature('aiSentinelEnabled', val)}
                     data-testid="switch-ai-sentinel"
                   />
                 </div>
@@ -447,16 +503,15 @@ export default function WalletPage() {
                     <Input 
                       id="spending-limit"
                       type="number" 
-                      value={spendingLimit}
-                      onChange={(e) => setSpendingLimit(e.target.value)}
+                      defaultValue={policy?.dailySpendingLimit || "10"}
                       placeholder="10.0"
+                      onBlur={(e) => saveSpendingLimit(e.target.value)}
                       data-testid="input-spending-limit"
                     />
                   </div>
-                  <Button className="w-full" data-testid="button-save-limit">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Save Limit
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Current limit: {policy?.dailySpendingLimit || "10"} ETH per day
+                  </p>
                 </CardContent>
               </Card>
 
@@ -480,9 +535,57 @@ export default function WalletPage() {
                       data-testid="input-whitelist-address"
                     />
                   </div>
-                  <Button onClick={addToWhitelist} className="w-full" data-testid="button-add-whitelist">
+                  <Button 
+                    onClick={() => addWhitelistMutation.mutate(whitelistAddress)} 
+                    className="w-full"
+                    disabled={!whitelistAddress || addWhitelistMutation.isPending}
+                    data-testid="button-add-whitelist"
+                  >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
                     Add to Whitelist
+                  </Button>
+                  {whitelist.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Trusted ({whitelist.length})</p>
+                      {whitelist.slice(0, 3).map((addr: string, i: number) => (
+                        <div key={i} className="text-xs bg-muted p-2 rounded truncate">
+                          {addr}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Blacklist */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Ban className="h-5 w-5" />
+                    Blocked Addresses
+                  </CardTitle>
+                  <CardDescription>Prevent interactions</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="blocklist-address">Address</Label>
+                    <Input 
+                      id="blocklist-address"
+                      value={blocklistAddress}
+                      onChange={(e) => setBlocklistAddress(e.target.value)}
+                      placeholder="0x..."
+                      data-testid="input-blocklist-address"
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => addBlocklistMutation.mutate({ address: blocklistAddress, reason: "Manual block" })} 
+                    variant="destructive"
+                    className="w-full"
+                    disabled={!blocklistAddress || addBlocklistMutation.isPending}
+                    data-testid="button-add-blocklist"
+                  >
+                    <Ban className="mr-2 h-4 w-4" />
+                    Block Address
                   </Button>
                 </CardContent>
               </Card>
@@ -509,23 +612,6 @@ export default function WalletPage() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Blacklist */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Ban className="h-5 w-5" />
-                    Blocked Addresses
-                  </CardTitle>
-                  <CardDescription>Prevent interactions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-6 text-muted-foreground">
-                    <Ban className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No blocked addresses</p>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </TabsContent>
 
@@ -536,7 +622,7 @@ export default function WalletPage() {
                   <Scan className="h-5 w-5" />
                   AI Security Sentinel
                 </CardTitle>
-                <CardDescription>Real-time threat monitoring and alerts</CardDescription>
+                <CardDescription>Real-time threat monitoring</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
@@ -545,14 +631,14 @@ export default function WalletPage() {
                       <span className="text-sm font-medium">Threats Blocked</span>
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                     </div>
-                    <div className="text-2xl font-bold">0</div>
+                    <div className="text-2xl font-bold">{alerts.filter((a: any) => a.type === 'blocked_transaction').length}</div>
                   </div>
                   <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Scans (24h)</span>
+                      <span className="text-sm font-medium">Total Alerts</span>
                       <Activity className="h-4 w-4 text-blue-500" />
                     </div>
-                    <div className="text-2xl font-bold">247</div>
+                    <div className="text-2xl font-bold">{alerts.length}</div>
                   </div>
                   <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
@@ -566,24 +652,36 @@ export default function WalletPage() {
                 <Separator />
 
                 <div>
-                  <h3 className="font-semibold mb-3">Recent Activity</h3>
+                  <h3 className="font-semibold mb-3">Recent Alerts</h3>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Wallet Connected</p>
-                        <p className="text-xs text-muted-foreground">All security checks passed</p>
+                    {alerts.length === 0 ? (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No threats detected</p>
                       </div>
-                      <span className="text-xs text-muted-foreground">Just now</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                      <Scan className="h-5 w-5 text-blue-500" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">Address Verified</p>
-                        <p className="text-xs text-muted-foreground">No threats detected</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">1m ago</span>
-                    </div>
+                    ) : (
+                      alerts.slice(0, 5).map((alert: any, i: number) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                          <div className={`p-2 rounded ${
+                            alert.severity === 'critical' ? 'bg-red-500/20' :
+                            alert.severity === 'high' ? 'bg-orange-500/20' :
+                            alert.severity === 'medium' ? 'bg-yellow-500/20' :
+                            'bg-blue-500/20'
+                          }`}>
+                            {alert.type === 'blocked_transaction' ? <Ban className="h-4 w-4" /> :
+                             alert.type === 'spending_limit' ? <TrendingUp className="h-4 w-4" /> :
+                             <Activity className="h-4 w-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{alert.title}</p>
+                            <p className="text-xs text-muted-foreground">{alert.description}</p>
+                          </div>
+                          <Badge variant={alert.severity === 'critical' ? 'destructive' : 'secondary'}>
+                            {alert.severity}
+                          </Badge>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -593,7 +691,7 @@ export default function WalletPage() {
                     <div>
                       <h4 className="font-semibold text-primary mb-1">AI Protection Active</h4>
                       <p className="text-sm text-muted-foreground">
-                        Your wallet is being monitored 24/7 by our AI Sentinel. Any suspicious activity will trigger immediate alerts.
+                        Your wallet is monitored 24/7. All transactions are validated against your security policies.
                       </p>
                     </div>
                   </div>

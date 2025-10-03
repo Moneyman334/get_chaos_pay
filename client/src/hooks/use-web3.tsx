@@ -396,6 +396,46 @@ export function useWeb3() {
         throw new Error("Wallet not connected");
       }
 
+      // SECURITY ENFORCEMENT: Validate transaction before sending
+      const validationResponse = await fetch('/api/security/validate-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: state.account,
+          to,
+          amount: value
+        })
+      });
+
+      if (!validationResponse.ok) {
+        throw new Error('Transaction validation failed');
+      }
+
+      const validation = await validationResponse.json();
+
+      // BLOCK if transaction is denied
+      if (validation.blocked) {
+        const error = new Error('Transaction blocked by security policy') as any;
+        error.blocked = true;
+        error.reason = validation.alerts?.[0]?.description || 'Address is blocked';
+        throw error;
+      }
+
+      // ENFORCE warnings - require explicit confirmation
+      if (validation.warnings && validation.warnings.length > 0) {
+        const warningMessage = validation.warnings.join('\n\n');
+        const confirmed = window.confirm(
+          `⚠️ SECURITY WARNING:\n\n${warningMessage}\n\nDo you want to proceed with this transaction?`
+        );
+        
+        if (!confirmed) {
+          const error = new Error('Transaction cancelled by user due to security warnings') as any;
+          error.cancelled = true;
+          error.warnings = validation.warnings;
+          throw error;
+        }
+      }
+
       const valueInWei = (() => {
         try {
           const [intPart, fracPart = '0'] = value.split('.');

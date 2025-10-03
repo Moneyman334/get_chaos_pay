@@ -4747,20 +4747,279 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== SECURITY / WALLET ROUTES =====
   
-  // Get security alerts (AI Sentinel monitoring)
-  app.get("/api/security/alerts", async (req, res) => {
+  // In-memory storage for security policies (temporary until database is fixed)
+  const securityPolicies = new Map<string, any>();
+  const trustedAddresses = new Map<string, Set<string>>();
+  const blockedAddresses = new Map<string, Set<string>>();
+  const transactionLimits = new Map<string, any>();
+  const securityAlerts = new Map<string, any[]>();
+  
+  // Get wallet security policy
+  app.get("/api/security/policy/:walletAddress", async (req, res) => {
     try {
-      // Mock security alerts for now - in production, this would integrate with:
-      // - Blockchain threat intelligence feeds
-      // - Transaction pattern analysis
-      // - Smart contract security scanning
-      // - Phishing database lookups
-      const mockAlerts: any[] = [];
+      const { walletAddress } = req.params;
+      const policy = securityPolicies.get(walletAddress.toLowerCase()) || {
+        walletAddress,
+        multiSigEnabled: false,
+        hardwareWalletEnabled: false,
+        txSimulationEnabled: true,
+        aiSentinelEnabled: true,
+        dailySpendingLimit: "10",
+        requireApprovalAbove: "5",
+        sessionTimeout: "3600",
+      };
+      res.json(policy);
+    } catch (error) {
+      console.error("Failed to fetch security policy:", error);
+      res.status(500).json({ error: "Failed to fetch security policy" });
+    }
+  });
+  
+  // Update wallet security policy
+  app.put("/api/security/policy/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const policySchema = z.object({
+        multiSigEnabled: z.boolean().optional(),
+        hardwareWalletEnabled: z.boolean().optional(),
+        txSimulationEnabled: z.boolean().optional(),
+        aiSentinelEnabled: z.boolean().optional(),
+        dailySpendingLimit: z.string().optional(),
+        requireApprovalAbove: z.string().optional(),
+        sessionTimeout: z.string().optional(),
+      });
       
-      res.json(mockAlerts);
+      const updates = policySchema.parse(req.body);
+      const current = securityPolicies.get(walletAddress.toLowerCase()) || {};
+      const updated = { ...current, ...updates, walletAddress, updatedAt: new Date() };
+      
+      securityPolicies.set(walletAddress.toLowerCase(), updated);
+      
+      // Create alert for policy change
+      const alert = {
+        id: Date.now().toString(),
+        type: 'policy_change',
+        severity: 'low',
+        title: 'Security Policy Updated',
+        description: `Security settings have been modified`,
+        metadata: updates,
+        isRead: false,
+        createdAt: new Date(),
+      };
+      
+      const alerts = securityAlerts.get(walletAddress.toLowerCase()) || [];
+      alerts.unshift(alert);
+      securityAlerts.set(walletAddress.toLowerCase(), alerts.slice(0, 50)); // Keep last 50
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update security policy:", error);
+      res.status(500).json({ error: "Failed to update security policy" });
+    }
+  });
+  
+  // Add trusted address
+  app.post("/api/security/whitelist/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const schema = z.object({
+        address: z.string(),
+        label: z.string().optional(),
+      });
+      
+      const { address, label } = schema.parse(req.body);
+      const key = walletAddress.toLowerCase();
+      
+      if (!trustedAddresses.has(key)) {
+        trustedAddresses.set(key, new Set());
+      }
+      
+      trustedAddresses.get(key)!.add(address.toLowerCase());
+      
+      // Create alert
+      const alert = {
+        id: Date.now().toString(),
+        type: 'whitelist_add',
+        severity: 'low',
+        title: 'Address Whitelisted',
+        description: `${address.slice(0, 10)}... added to trusted addresses`,
+        metadata: { address, label },
+        isRead: false,
+        createdAt: new Date(),
+      };
+      
+      const alerts = securityAlerts.get(key) || [];
+      alerts.unshift(alert);
+      securityAlerts.set(key, alerts.slice(0, 50));
+      
+      res.json({ success: true, address, label });
+    } catch (error) {
+      console.error("Failed to add trusted address:", error);
+      res.status(500).json({ error: "Failed to add trusted address" });
+    }
+  });
+  
+  // Get trusted addresses
+  app.get("/api/security/whitelist/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const addresses = Array.from(trustedAddresses.get(walletAddress.toLowerCase()) || []);
+      res.json(addresses);
+    } catch (error) {
+      console.error("Failed to fetch trusted addresses:", error);
+      res.status(500).json({ error: "Failed to fetch trusted addresses" });
+    }
+  });
+  
+  // Block address
+  app.post("/api/security/blacklist/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const schema = z.object({
+        address: z.string(),
+        reason: z.string().optional(),
+      });
+      
+      const { address, reason } = schema.parse(req.body);
+      const key = walletAddress.toLowerCase();
+      
+      if (!blockedAddresses.has(key)) {
+        blockedAddresses.set(key, new Set());
+      }
+      
+      blockedAddresses.get(key)!.add(address.toLowerCase());
+      
+      // Create high severity alert
+      const alert = {
+        id: Date.now().toString(),
+        type: 'blacklist_add',
+        severity: 'high',
+        title: 'Address Blocked',
+        description: `${address.slice(0, 10)}... has been blocked`,
+        metadata: { address, reason },
+        isRead: false,
+        createdAt: new Date(),
+      };
+      
+      const alerts = securityAlerts.get(key) || [];
+      alerts.unshift(alert);
+      securityAlerts.set(key, alerts.slice(0, 50));
+      
+      res.json({ success: true, address, reason });
+    } catch (error) {
+      console.error("Failed to block address:", error);
+      res.status(500).json({ error: "Failed to block address" });
+    }
+  });
+  
+  // Validate transaction (security enforcement)
+  app.post("/api/security/validate-transaction", async (req, res) => {
+    try {
+      const schema = z.object({
+        from: z.string(),
+        to: z.string(),
+        amount: z.string(),
+      });
+      
+      const { from, to, amount } = schema.parse(req.body);
+      const fromKey = from.toLowerCase();
+      const toKey = to.toLowerCase();
+      
+      const policy = securityPolicies.get(fromKey) || {};
+      const alerts: any[] = [];
+      let blocked = false;
+      let warnings: string[] = [];
+      
+      // Check if address is blocked
+      if (blockedAddresses.get(fromKey)?.has(toKey)) {
+        blocked = true;
+        alerts.push({
+          id: Date.now().toString(),
+          type: 'blocked_transaction',
+          severity: 'critical',
+          title: 'Transaction Blocked',
+          description: `Attempted transaction to blocked address ${to.slice(0, 10)}...`,
+          metadata: { from, to, amount },
+          isRead: false,
+          createdAt: new Date(),
+        });
+      }
+      
+      // Check spending limit
+      const dailyLimit = parseFloat(policy.dailySpendingLimit || "10");
+      const txAmount = parseFloat(amount);
+      
+      if (txAmount > dailyLimit) {
+        warnings.push(`Transaction amount (${amount} ETH) exceeds daily limit (${dailyLimit} ETH)`);
+        alerts.push({
+          id: (Date.now() + 1).toString(),
+          type: 'spending_limit',
+          severity: 'medium',
+          title: 'Spending Limit Exceeded',
+          description: `Transaction of ${amount} ETH exceeds daily limit of ${dailyLimit} ETH`,
+          metadata: { from, to, amount, limit: dailyLimit },
+          isRead: false,
+          createdAt: new Date(),
+        });
+      }
+      
+      // Check if high-value transaction
+      const requireApproval = parseFloat(policy.requireApprovalAbove || "5");
+      if (txAmount > requireApproval) {
+        warnings.push(`High-value transaction requires approval (>${requireApproval} ETH)`);
+      }
+      
+      // Check if address is trusted
+      const isTrusted = trustedAddresses.get(fromKey)?.has(toKey);
+      if (!isTrusted && !blocked) {
+        warnings.push(`Recipient address is not in your trusted list`);
+      }
+      
+      // Store alerts
+      if (alerts.length > 0) {
+        const existingAlerts = securityAlerts.get(fromKey) || [];
+        securityAlerts.set(fromKey, [...alerts, ...existingAlerts].slice(0, 50));
+      }
+      
+      res.json({
+        valid: !blocked,
+        blocked,
+        warnings,
+        requiresApproval: txAmount > requireApproval,
+        alerts,
+        policy,
+      });
+    } catch (error) {
+      console.error("Transaction validation failed:", error);
+      res.status(500).json({ error: "Transaction validation failed" });
+    }
+  });
+  
+  // Get security alerts (AI Sentinel monitoring)
+  app.get("/api/security/alerts/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const alerts = securityAlerts.get(walletAddress.toLowerCase()) || [];
+      res.json(alerts);
     } catch (error) {
       console.error("Failed to fetch security alerts:", error);
       res.status(500).json({ error: "Failed to fetch security alerts" });
+    }
+  });
+  
+  // Mark alert as read
+  app.put("/api/security/alerts/:walletAddress/:alertId/read", async (req, res) => {
+    try {
+      const { walletAddress, alertId } = req.params;
+      const alerts = securityAlerts.get(walletAddress.toLowerCase()) || [];
+      const alert = alerts.find(a => a.id === alertId);
+      if (alert) {
+        alert.isRead = true;
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to mark alert as read:", error);
+      res.status(500).json({ error: "Failed to mark alert as read" });
     }
   });
   
