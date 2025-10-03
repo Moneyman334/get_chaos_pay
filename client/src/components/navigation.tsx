@@ -25,7 +25,8 @@ import {
   Trophy,
   Zap,
   Twitter,
-  BarChart3
+  BarChart3,
+  Activity
 } from "lucide-react";
 
 interface NavigationProps {
@@ -36,6 +37,7 @@ interface NavigationProps {
 const navigationItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/empire", label: "Empire", icon: Crown, featured: true },
+  { path: "/command-center", label: "Command Center", icon: Activity, featured: true },
   { path: "/auto-compound", label: "Auto-Compound", icon: Zap },
   { path: "/vaults", label: "House Vaults", icon: Trophy },
   { path: "/sentinel-bot", label: "Sentinel Bot", icon: Bot },

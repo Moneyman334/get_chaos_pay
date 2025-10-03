@@ -28,6 +28,7 @@ import AutoCompoundPage from "@/pages/auto-compound";
 import SocialAutomationPage from "@/pages/social-automation";
 import MarketingDashboardPage from "@/pages/marketing-dashboard";
 import MarketingOverviewPage from "@/pages/marketing-overview";
+import CommandCenterPage from "@/pages/command-center";
 import AdminDiscountsPage from "@/pages/admin-discounts";
 import AdminFlashSalesPage from "@/pages/admin-flash-sales";
 import SubscriptionsPage from "@/pages/subscriptions";
@@ -102,6 +103,7 @@ function Router() {
       <Route path="/social-automation" component={SocialAutomationPage} />
       <Route path="/marketing" component={MarketingDashboardPage} />
       <Route path="/marketing-overview" component={MarketingOverviewPage} />
+      <Route path="/command-center" component={CommandCenterPage} />
       <Route path="/admin/discounts" component={AdminDiscountsPage} />
       <Route path="/admin/flash-sales" component={AdminFlashSalesPage} />
       <Route path="/subscriptions" component={SubscriptionsPage} />
