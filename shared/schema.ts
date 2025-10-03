@@ -1574,3 +1574,76 @@ export type InsertPreOrder = z.infer<typeof insertPreOrderSchema>;
 export type PreOrder = typeof preOrders.$inferSelect;
 export type InsertRecentlyViewed = z.infer<typeof insertRecentlyViewedSchema>;
 export type RecentlyViewed = typeof recentlyViewed.$inferSelect;
+
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  type: text("type").notNull(), // social, email, paid_ads, content, influencer, partnership
+  status: text("status").notNull().default("draft"), // draft, active, paused, completed
+  budget: text("budget").notNull().default("0"), // Total budget
+  spent: text("spent").notNull().default("0"), // Amount spent
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  targetAudience: text("target_audience"),
+  channels: text("channels").array().default(sql`'{}'::text[]`), // twitter, telegram, discord, etc
+  goals: jsonb("goals"), // {impressions: 10000, clicks: 500, conversions: 50}
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const campaignMetrics = pgTable("campaign_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => marketingCampaigns.id),
+  impressions: text("impressions").notNull().default("0"),
+  clicks: text("clicks").notNull().default("0"),
+  conversions: text("conversions").notNull().default("0"),
+  revenue: text("revenue").notNull().default("0"),
+  ctr: text("ctr").notNull().default("0"), // Click-through rate
+  conversionRate: text("conversion_rate").notNull().default("0"),
+  roi: text("roi").notNull().default("0"), // Return on investment
+  date: timestamp("date").notNull(),
+  metadata: jsonb("metadata"), // Additional platform-specific metrics
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  campaignIdx: index("campaign_metrics_campaign_idx").on(table.campaignId),
+  dateIdx: index("campaign_metrics_date_idx").on(table.date),
+}));
+
+export const marketingBudgets = pgTable("marketing_budgets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").notNull().references(() => marketingCampaigns.id),
+  channel: text("channel").notNull(), // specific channel within campaign
+  allocated: text("allocated").notNull().default("0"),
+  spent: text("spent").notNull().default("0"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  campaignChannelIdx: index("marketing_budgets_campaign_channel_idx").on(table.campaignId, table.channel),
+}));
+
+export const insertMarketingCampaignSchema = createInsertSchema(marketingCampaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCampaignMetricSchema = createInsertSchema(campaignMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMarketingBudgetSchema = createInsertSchema(marketingBudgets).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMarketingCampaign = z.infer<typeof insertMarketingCampaignSchema>;
+export type MarketingCampaign = typeof marketingCampaigns.$inferSelect;
+export type InsertCampaignMetric = z.infer<typeof insertCampaignMetricSchema>;
+export type CampaignMetric = typeof campaignMetrics.$inferSelect;
+export type InsertMarketingBudget = z.infer<typeof insertMarketingBudgetSchema>;
+export type MarketingBudget = typeof marketingBudgets.$inferSelect;
