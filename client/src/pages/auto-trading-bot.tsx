@@ -26,7 +26,8 @@ import {
   CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
-  BarChart3
+  BarChart3,
+  Crown
 } from "lucide-react";
 
 const TRADING_PAIRS = [
@@ -158,10 +159,55 @@ export default function AutoTradingBot() {
   const totalProfit = botStats?.totalProfit || 0;
   const totalTrades = botStats?.totalTrades || 0;
   const winRate = botStats?.winRate || 0;
+  const [showSubscription, setShowSubscription] = useState(true);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Subscription Banner */}
+        {showSubscription && (
+          <Card className="border-amber-500 bg-gradient-to-r from-amber-500/10 to-orange-500/10">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-full bg-amber-500/20">
+                    <Crown className="h-6 w-6 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-lg flex items-center gap-2">
+                      Upgrade to Premium Bot
+                      <Badge variant="outline" className="bg-amber-500/20 text-amber-600 border-amber-500">
+                        Special Offer
+                      </Badge>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Unlock advanced strategies, higher trade limits, and priority execution
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSubscription(false)}
+                    data-testid="button-dismiss-subscription"
+                  >
+                    Dismiss
+                  </Button>
+                  <Button
+                    className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                    onClick={() => window.location.href = '/subscriptions'}
+                    data-testid="button-upgrade-bot"
+                  >
+                    <Crown className="mr-2 h-4 w-4" />
+                    Upgrade Now - $49/mo
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
