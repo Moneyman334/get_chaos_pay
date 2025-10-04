@@ -5937,6 +5937,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to log NFT evolution" });
     }
   });
+
+  // ========================
+  // AUTO-DEPLOY ROUTES
+  // ========================
+
+  // Generate default ERC-20 token configuration
+  app.post("/api/auto-deploy/token/generate", async (req, res) => {
+    try {
+      const generateSchema = z.object({
+        walletAddress: ethereumAddressSchema,
+        chainId: z.string().optional(),
+      });
+      
+      const data = generateSchema.parse(req.body);
+      const defaultName = `AutoToken${Math.floor(Math.random() * 1000)}`;
+      const defaultSymbol = `ATK${Math.floor(Math.random() * 100)}`;
+      
+      const contractCode = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts@5.0.0/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts@5.0.0/access/Ownable.sol";
+
+contract ${defaultSymbol} is ERC20, Ownable {
+    constructor(address initialOwner)
+        ERC20("${defaultName}", "${defaultSymbol}")
+        Ownable(initialOwner)
+    {
+        _mint(initialOwner, 1000000 * 10 ** decimals());
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
+}`;
+
+      res.json({
+        success: true,
+        config: {
+          name: defaultName,
+          symbol: defaultSymbol,
+          initialSupply: "1000000",
+          decimals: "18",
+          chainId: data.chainId || "1",
+          features: ["mintable"],
+        },
+        contractCode,
+        bytecode: "0x", // Would need compiler in production
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid request data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to generate token:", error);
+      res.status(500).json({ error: "Failed to generate token configuration" });
+    }
+  });
+
+  // Generate default ERC-721 NFT configuration
+  app.post("/api/auto-deploy/nft/generate", async (req, res) => {
+    try {
+      const generateSchema = z.object({
+        walletAddress: ethereumAddressSchema,
+        chainId: z.string().optional(),
+      });
+      
+      const data = generateSchema.parse(req.body);
+      const defaultName = `AutoNFT${Math.floor(Math.random() * 1000)}`;
+      const defaultSymbol = `ANFT${Math.floor(Math.random() * 100)}`;
+      
+      const contractCode = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts@5.0.0/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts@5.0.0/access/Ownable.sol";
+
+contract ${defaultSymbol} is ERC721, Ownable {
+    uint256 private _nextTokenId;
+    uint256 public maxSupply = 10000;
+    string private _baseTokenURI;
+
+    constructor(address initialOwner)
+        ERC721("${defaultName}", "${defaultSymbol}")
+        Ownable(initialOwner)
+    {
+        _baseTokenURI = "ipfs://YOUR_CID/";
+    }
+
+    function mint(address to) public onlyOwner {
+        require(_nextTokenId < maxSupply, "Max supply reached");
+        uint256 tokenId = _nextTokenId++;
+        _safeMint(to, tokenId);
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
+    }
+}`;
+
+      res.json({
+        success: true,
+        config: {
+          name: defaultName,
+          symbol: defaultSymbol,
+          maxSupply: "10000",
+          chainId: data.chainId || "1",
+          standard: "erc721",
+          baseUri: "ipfs://YOUR_CID/",
+        },
+        contractCode,
+        bytecode: "0x", // Would need compiler in production
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid request data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to generate NFT:", error);
+      res.status(500).json({ error: "Failed to generate NFT configuration" });
+    }
+  });
+
+  // Record deployed contract
+  app.post("/api/auto-deploy/record", async (req, res) => {
+    try {
+      const recordSchema = z.object({
+        contractAddress: ethereumAddressSchema,
+        chainId: z.string(),
+        name: z.string(),
+        symbol: z.string(),
+        type: z.enum(["token", "nft"]),
+        deployerAddress: ethereumAddressSchema,
+        transactionHash: z.string(),
+        contractCode: z.string(),
+      });
+      
+      const data = recordSchema.parse(req.body);
+      
+      // Store in contracts table
+      const contract = await storage.createContract({
+        address: data.contractAddress,
+        chainId: data.chainId,
+        name: data.name,
+        abi: data.type === "token" 
+          ? [{"inputs":[{"internalType":"address","name":"initialOwner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"}]
+          : [{"inputs":[{"internalType":"address","name":"initialOwner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"}],
+        tags: [`auto-deployed`, data.type],
+        description: `Auto-deployed ${data.type} by ${data.deployerAddress}`,
+        sourceCode: data.contractCode,
+        compiler: "solc-0.8.20",
+        isVerified: "false",
+      });
+      
+      // If token, also create token record
+      if (data.type === "token") {
+        await storage.createToken({
+          contractAddress: data.contractAddress,
+          chainId: data.chainId,
+          name: data.name,
+          symbol: data.symbol,
+          decimals: "18",
+          isVerified: "false",
+          totalSupply: "1000000000000000000000000", // 1M tokens with 18 decimals
+        });
+      }
+      
+      res.status(201).json({
+        success: true,
+        message: "Contract deployment recorded successfully",
+        contract,
+        explorerUrl: `https://etherscan.io/tx/${data.transactionHash}`,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid record data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to record deployment:", error);
+      res.status(500).json({ error: "Failed to record deployment" });
+    }
+  });
   
   const httpServer = createServer(app);
   return httpServer;
