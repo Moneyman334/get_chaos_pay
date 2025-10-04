@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link } from "wouter";
 import { 
   Bot, 
   TrendingUp, 
@@ -61,10 +62,12 @@ export default function BotDashboard() {
               </h1>
               <p className="text-muted-foreground mt-1">Monitor your automated trading performance</p>
             </div>
-            <Button size="lg" data-testid="button-configure-bot">
-              <Settings className="mr-2 h-4 w-4" />
-              Configure Bot
-            </Button>
+            <Link href="/auto-trading-bot">
+              <Button size="lg" data-testid="button-configure-bot">
+                <Settings className="mr-2 h-4 w-4" />
+                Configure Bot
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -160,10 +163,12 @@ export default function BotDashboard() {
                       Start a strategy from the Sentinel Bot page to begin automated trading
                     </p>
                   </div>
-                  <Button>
-                    <Play className="mr-2 h-4 w-4" />
-                    Start Trading
-                  </Button>
+                  <Link href="/trade">
+                    <Button data-testid="button-start-trading">
+                      <Play className="mr-2 h-4 w-4" />
+                      Start Trading
+                    </Button>
+                  </Link>
                 </div>
               </Card>
             ) : (
