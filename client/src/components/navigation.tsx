@@ -33,7 +33,8 @@ import {
   ShoppingBag,
   Package,
   Lock,
-  Target
+  Target,
+  Scroll
 } from "lucide-react";
 
 interface NavigationProps {
@@ -49,6 +50,7 @@ const navigationItems = [
   { path: "/codex-staking", label: "CODEX Staking", icon: Lock, featured: true },
   { path: "/codex-nfts", label: "CODEX NFTs", icon: Sparkles, featured: true },
   { path: "/codex-achievements", label: "CODEX Achievements", icon: Target, featured: true },
+  { path: "/codex-relics", label: "CODEX Relics", icon: Scroll, featured: true },
   { path: "/wallet-nexus", label: "Wallet Nexus", icon: Network, featured: true },
   { path: "/trade", label: "Trade Crypto", icon: TrendingUp, featured: true },
   { path: "/products", label: "Shop", icon: ShoppingBag, featured: true },

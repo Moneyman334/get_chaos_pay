@@ -70,6 +70,7 @@ import CodexTokenDashboard from "@/pages/codex-token-dashboard";
 import CodexNftsPage from "@/pages/codex-nfts";
 import CodexAchievementsPage from "@/pages/codex-achievements";
 import CodexStakingPage from "@/pages/codex-staking";
+import CodexRelicsPage from "@/pages/codex-relics";
 import AutoDeployPage from "@/pages/auto-deploy";
 import NotFound from "@/pages/not-found";
 import EnhancedConnectionModal from "@/components/enhanced-connection-modal";
@@ -130,6 +131,7 @@ function Router() {
       <Route path="/codex-nfts" component={CodexNftsPage} />
       <Route path="/codex-achievements" component={CodexAchievementsPage} />
       <Route path="/codex-staking" component={CodexStakingPage} />
+      <Route path="/codex-relics" component={CodexRelicsPage} />
       <Route path="/cart" component={CartPage} />
       <Route path="/cart-recovery" component={CartRecoveryPage} />
       <Route path="/products" component={ProductsPage} />
