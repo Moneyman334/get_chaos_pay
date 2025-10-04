@@ -50,6 +50,18 @@ The backend is an Express.js and TypeScript REST API with modular routes. It use
 - **House Vaults System**: Player-owned liquidity system for ETH staking with varying APY and lock periods.
 
 ### E-commerce & Payments
+- **Complete Checkout System** (PRODUCTION READY): Full e-commerce checkout flow with persistent cart, order creation, and crypto payment processing:
+  - **Persistent Shopping Cart**: Session-based PostgreSQL cart with 30-day retention, accessible at `/cart`
+  - **Cart Management**: Add/remove products, update quantities, real-time price calculations, persistent across sessions
+  - **Checkout Flow**: Three-stage checkout process at `/checkout`:
+    1. Order Summary & Contact: Cart review, email collection, payment method selection
+    2. Payment Processing: MetaMask direct payments or NOWPayments multi-crypto support
+    3. Order Confirmation: Blockchain verification, transaction explorer links, order status
+  - **Smart Cart Clearing**: Cart preserved through order creation, cleared only after successful payment confirmation
+  - **MetaMask Integration**: Direct ETH payments with real-time blockchain verification and transaction tracking
+  - **NOWPayments Support**: Multi-cryptocurrency payments (BTC, ETH, SOL, USDT, 300+ coins) with status polling
+  - **Payment Status Monitoring**: Automatic 5-second polling for payment confirmation with useEffect-driven cart clearing
+  - **Order Management**: Complete order history, payment tracking, and blockchain verification
 - **Blockchain-Native Payment System**: Instant settlement, no chargebacks, lower fees, multi-chain support (Ethereum, Base, Polygon, Sepolia) with product management, shopping cart, and order management.
 - **Advanced E-commerce Features**: Multi-currency, stablecoin support, discount codes, gift cards, invoice/payment links, refund system, wallet-based loyalty points, blockchain-verified product reviews, subscription/recurring payments, affiliate/referral system, and on-chain NFT receipts.
 
