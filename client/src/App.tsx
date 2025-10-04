@@ -70,6 +70,7 @@ import CodexTokenDashboard from "@/pages/codex-token-dashboard";
 import CodexNftsPage from "@/pages/codex-nfts";
 import CodexAchievementsPage from "@/pages/codex-achievements";
 import CodexStakingPage from "@/pages/codex-staking";
+import AutoDeployPage from "@/pages/auto-deploy";
 import NotFound from "@/pages/not-found";
 import EnhancedConnectionModal from "@/components/enhanced-connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -108,6 +109,7 @@ function Router() {
       <Route path="/orders" component={OrdersPage} />
       <Route path="/token-creator" component={TokenCreatorPage} />
       <Route path="/nft-creator" component={NFTCreatorPage} />
+      <Route path="/auto-deploy" component={AutoDeployPage} />
       <Route path="/trade" component={TradePage} />
       <Route path="/sentinel-bot" component={SentinelBotPage} />
       <Route path="/bot-dashboard" component={BotDashboardPage} />

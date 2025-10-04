@@ -67,6 +67,7 @@ const navigationItems = [
   { path: "/crypto-payments", label: "All Crypto", icon: Coins },
   { path: "/token-creator", label: "Create Token", icon: Sparkles },
   { path: "/nft-creator", label: "Create NFT", icon: Image },
+  { path: "/auto-deploy", label: "Auto-Deploy", icon: Zap, featured: true },
   { path: "/nfts", label: "NFT Gallery", icon: Palette }
 ];
 
