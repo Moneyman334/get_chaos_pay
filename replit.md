@@ -16,11 +16,23 @@
 4. **Auto-Compound Pool Selection**: Fixed pool selection on auto-compound page - cards now show "Selected" badge, border highlighting, and data-selected attribute; selection works even when wallet disconnected for better UX
 5. **Bot Dashboard Navigation**: Fixed "Configure Bot" button to redirect to /auto-trading-bot page and "Start Trading" button to redirect to /trade page for seamless navigation flow
 
+## New Features (Oct 4, 2025)
+1. **CODEX Relics System**: Revolutionary artifact system with soulbound NFT relics providing ecosystem-wide passive boosts
+   - **3 Relic Classes**: Chronicle (staking APY boost), Catalyst (trading fee rebates), Sentinel (AI bot enhancements)
+   - **3 Tiers**: Common, Rare, Epic with increasing power levels
+   - **Initial Catalog**: 9 relics across all classes and tiers
+   - **Acquisition Methods**: Milestone achievements, Relic Forge crafting (burn CDX+NFTs), House Vault rituals
+   - **Equipment System**: 3-slot loadout for active relics, unequip/equip functionality
+   - **Database Structure**: 4 tables (codex_relics catalog, codex_relic_instances, codex_relic_progress, codex_relic_effects)
+   - **Frontend**: `/codex-relics` page with 3-tab structure (Catalog, Forge, My Relics), cosmic theme, responsive design
+   - **Backend**: 7 API endpoints for catalog viewing, instance management, equip/unequip operations
+   - **Navigation**: Added to main nav with Scroll icon, fully integrated into CODEX ecosystem
+
 ## Comprehensive Application Testing (Oct 4, 2025)
-Completed full end-to-end testing of all 29+ pages:
+Completed full end-to-end testing of all 30+ pages:
 - ✅ **Core Navigation**: Homepage, navigation bar, wallet connection status
 - ✅ **Web3 Features**: Wallet, Wallet Nexus, Deposits all functional
-- ✅ **CODEX Ecosystem**: Dashboard, NFTs, Achievements, Staking pools working perfectly
+- ✅ **CODEX Ecosystem**: Dashboard, NFTs, Achievements, Staking, **Relics** all working perfectly
 - ✅ **Trading**: Trade Crypto, Auto Trading Bot (with subscription banner), Auto-Compound (with fixed pool selection)
 - ✅ **E-commerce**: Products, Cart, Checkout, Orders all operational
 - ✅ **Smart Contracts**: Token Creator, NFT Creator, Auto-Deploy demo mode working
@@ -52,7 +64,7 @@ The backend is an Express.js and TypeScript REST API with modular routes. It use
 ### Web3 & Blockchain
 - **Auto-Deploy System**: A production-quality demo for one-click token and NFT deployment, generating ERC-20 tokens and ERC-721 NFTs with IPFS readiness. It features a risk-free demo mode, database integration, history tracking, and production-ready Solidity code.
 - **Codex Wallet Nexus**: A multi-wallet management system supporting unlimited simultaneous wallet connections (MetaMask, Coinbase Wallet, with extensibility for others), a unified interface, primary wallet designation, session persistence, balance aggregation, and multi-chain support (EVM chains).
-- **CODEX ECOSYSTEM**: A complete platform token economy including a platform token (CDX), four NFT collections (Founder's Pass, Elite Member Pass, Genesis Collection, Living Achievements), four staking pools with NFT holder multipliers, and eight AI-powered dynamic Living Achievements that evolve with user activity. It includes 18 API endpoints and 4 frontend pages (`/codex-dashboard`, `/codex-nfts`, `/codex-achievements`, `/codex-staking`).
+- **CODEX ECOSYSTEM**: A complete platform token economy including a platform token (CDX), four NFT collections (Founder's Pass, Elite Member Pass, Genesis Collection, Living Achievements), four staking pools with NFT holder multipliers, eight AI-powered dynamic Living Achievements that evolve with user activity, and the new **Relics System** with 9 soulbound artifacts providing passive ecosystem boosts. It includes 25+ API endpoints and 5 frontend pages (`/codex-dashboard`, `/codex-nfts`, `/codex-achievements`, `/codex-staking`, `/codex-relics`).
 - **Multi-Chain Wallet Integration**: Primarily MetaMask for connections, account data, balances, and transaction signing.
 - **Advanced Wallet Security Protection**: Features a Transaction Validation Engine, Velocity Limits, Emergency Lockdown Mode, Fraud Detection, Blacklist/Whitelist, Spending Limits, and AI Sentinel Monitoring.
 - **Smart Contract Generators**: Production-ready ERC-20 token and ERC-721/721A/1155 NFT creators with IPFS integration.
