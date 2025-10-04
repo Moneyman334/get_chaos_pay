@@ -55,7 +55,7 @@ const navigationItems = [
   { path: "/cart", label: "Cart", icon: ShoppingCart },
   { path: "/orders", label: "Orders", icon: Package },
   { path: "/auto-trading-bot", label: "Auto Trading Bot", icon: Bot, featured: true },
-  { path: "/auto-compound", label: "Auto-Compound", icon: Zap },
+  { path: "/auto-compound", label: "Auto-Compound", icon: Zap, featured: true },
   { path: "/vaults", label: "House Vaults", icon: Trophy },
   { path: "/sentinel-bot", label: "Sentinel Bot", icon: Bot },
   { path: "/social-automation", label: "Social Automation", icon: Twitter },
