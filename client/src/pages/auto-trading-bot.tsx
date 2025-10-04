@@ -122,6 +122,10 @@ export default function AutoTradingBot() {
       };
       
       const res = await apiRequest('POST', '/api/bot/start', validatedConfig);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Failed to start bot" }));
+        throw new Error(errorData.error || errorData.message || "Failed to connect to trading bot");
+      }
       return await res.json();
     },
     onSuccess: () => {
@@ -135,7 +139,7 @@ export default function AutoTradingBot() {
     onError: (error: any) => {
       toast({
         title: "Failed to Start Bot",
-        description: error.message,
+        description: error.message || "Unable to connect to trading bot. Please check your configuration.",
         variant: "destructive",
       });
     },
@@ -144,6 +148,10 @@ export default function AutoTradingBot() {
   const stopBotMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest('POST', '/api/bot/stop', {});
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Failed to stop bot" }));
+        throw new Error(errorData.error || errorData.message || "Failed to stop bot");
+      }
       return await res.json();
     },
     onSuccess: () => {
@@ -151,6 +159,13 @@ export default function AutoTradingBot() {
       toast({
         title: "Bot Stopped",
         description: "Auto trading has been paused",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Stop Bot",
+        description: error.message || "Unable to stop trading bot",
+        variant: "destructive",
       });
     },
   });
