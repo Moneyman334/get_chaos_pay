@@ -28,6 +28,17 @@ The backend is an Express.js and TypeScript REST API with modular routes. It use
 ## Feature Specifications
 
 ### Web3 & Blockchain
+- **Codex Wallet Nexus** (NEW - REVOLUTIONARY): State-of-the-art multi-wallet management system that goes beyond traditional wallet connectors. Features include:
+  - **Multi-Wallet Support**: Connect unlimited wallets simultaneously (MetaMask, Coinbase Wallet, with extensible architecture for Trust Wallet, Phantom, Ledger, Trezor, WalletConnect)
+  - **Unified Interface**: Manage all wallets in one place with instant switching
+  - **Primary Wallet System**: Designate one wallet as primary for default transactions
+  - **Session Persistence**: Auto-reconnect wallets with encrypted localStorage sessions
+  - **Balance Aggregation**: View combined balance across all connected wallets
+  - **Multi-Chain Support**: EVM chains (Ethereum, Base, Polygon, Sepolia) with architecture ready for Solana, Bitcoin
+  - **Connector Architecture**: Pluggable wallet connectors with base adapter pattern for easy extension
+  - **Real-time Updates**: Event-driven architecture listening to wallet events (account changes, chain switches, disconnections)
+  - **UI Components**: WalletConnectionModal for connections, WalletCard for wallet management, WalletNexusPage as command center
+  - Accessible at `/wallet-nexus` (featured in navigation)
 - **Multi-Chain Wallet Integration**: MetaMask for connections, account data, balances, and transaction signing.
 - **Advanced Wallet Security Protection**: Features a Transaction Validation Engine, Velocity Limits, Emergency Lockdown Mode, Fraud Detection, Blacklist/Whitelist System, Spending Limits, AI Sentinel Monitoring, and readiness for Multi-Signature and Hardware Wallet integrations.
 - **Smart Contract Generators**: Production-ready ERC-20 token and ERC-721/721A/1155 NFT creators with IPFS integration.
@@ -51,10 +62,11 @@ The backend is an Express.js and TypeScript REST API with modular routes. It use
 - **Twitter Auto-Posting**: Automated promotional content posting every 3 hours using OAuth 1.0a credentials, cycling through specific messages.
 
 ### Key Frontend Pages
-The platform includes 28 comprehensive frontend pages covering:
+The platform includes 29 comprehensive frontend pages covering:
 - **Product Management**: Catalog, Wishlist, Product Reviews, Flash Sales Admin.
 - **User & Order Management**: Customer Dashboard, Enhanced Checkout, Invoices, Enhanced Orders.
 - **Analytics & Portfolio**: Analytics Dashboard, Portfolio Tracker, Notifications System.
+- **Wallet Management**: Codex Wallet Nexus (featured in navigation) - Revolutionary multi-wallet command center.
 - **Trading**: Buy & Trade Crypto (featured in navigation).
 - **User Experience**: Settings & Preferences (featured in navigation) with comprehensive preference management and real-time analytics insights.
 - **Web3 Features**: Achievements & Gamification, Marketplace, Staking Rewards, Referral/Affiliate System, Token Swap/DEX, NFT Gallery, DAO Governance, P2P Lending, Prediction Markets, Yield Farming, Social Trading, Token Launchpad.

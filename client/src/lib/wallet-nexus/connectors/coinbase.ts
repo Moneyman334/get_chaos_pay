@@ -21,6 +21,49 @@ export class CoinbaseConnector extends BaseWalletConnector {
     return typeof window !== 'undefined' && typeof window.coinbaseWalletExtension !== 'undefined';
   }
 
+  async checkConnection(): Promise<WalletInfo | null> {
+    if (!this.isInstalled()) {
+      return null;
+    }
+
+    this.provider = window.coinbaseWalletExtension;
+
+    const accounts = await this.provider.request({
+      method: 'eth_accounts'
+    });
+
+    if (!accounts || accounts.length === 0) {
+      return null;
+    }
+
+    const address = accounts[0];
+    const chainId = await this.provider.request({ method: 'eth_chainId' });
+    const balance = await this.provider.request({
+      method: 'eth_getBalance',
+      params: [address, 'latest']
+    });
+
+    const network = getNetworkByChainId(chainId);
+
+    const walletInfo: WalletInfo = {
+      id: this.generateWalletId(address, this.type),
+      type: this.type,
+      name: 'Coinbase Wallet',
+      address,
+      chainType: 'evm',
+      chainId,
+      balance: this.formatBalance(BigInt(balance)),
+      nativeSymbol: network?.symbol || 'ETH',
+      isConnected: true,
+      isPrimary: false,
+      lastUsed: Date.now(),
+    };
+
+    this.setupEventListeners(walletInfo.id);
+
+    return walletInfo;
+  }
+
   async connect(): Promise<WalletInfo> {
     if (!this.isInstalled()) {
       if (this.isMobile()) {

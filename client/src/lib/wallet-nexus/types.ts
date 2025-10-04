@@ -45,6 +45,7 @@ export interface WalletConnector {
   description: string;
   isInstalled: () => boolean;
   isMobileSupported: boolean;
+  checkConnection: () => Promise<WalletInfo | null>;
   connect: () => Promise<WalletInfo>;
   disconnect: (walletId: string) => Promise<void>;
   switchChain: (walletId: string, chainId: string) => Promise<void>;

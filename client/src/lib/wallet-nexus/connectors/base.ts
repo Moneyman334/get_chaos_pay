@@ -8,6 +8,7 @@ export abstract class BaseWalletConnector implements WalletConnector {
   abstract isMobileSupported: boolean;
 
   abstract isInstalled(): boolean;
+  abstract checkConnection(): Promise<WalletInfo | null>;
   abstract connect(): Promise<WalletInfo>;
   abstract disconnect(walletId: string): Promise<void>;
   abstract switchChain(walletId: string, chainId: string): Promise<void>;

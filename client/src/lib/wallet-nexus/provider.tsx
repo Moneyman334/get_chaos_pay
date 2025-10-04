@@ -33,7 +33,7 @@ export function WalletNexusProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, ...updates }));
   };
 
-  const loadSession = useCallback(() => {
+  const loadSession = useCallback(async () => {
     try {
       const storedSession = localStorage.getItem(STORAGE_KEY);
       if (storedSession) {
@@ -52,6 +52,27 @@ export function WalletNexusProvider({ children }: { children: ReactNode }) {
           primaryWalletId: session.primaryWalletId,
           totalBalanceUSD: session.totalBalanceUSD,
           isInitialized: true,
+        });
+
+        for (const wallet of session.wallets) {
+          try {
+            const connector = getConnector(wallet.type);
+            const reconnectedWallet = await connector.checkConnection();
+            
+            if (reconnectedWallet) {
+              walletsMap.set(reconnectedWallet.id, {
+                ...reconnectedWallet,
+                isPrimary: wallet.isPrimary,
+                lastUsed: wallet.lastUsed,
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to reconnect ${wallet.type}:`, error);
+          }
+        }
+
+        updateState({
+          wallets: walletsMap,
         });
 
         return walletsMap;
