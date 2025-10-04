@@ -41,23 +41,32 @@ export default function CodexStakingPage() {
   });
 
   const { data: userStakes, isLoading: stakesLoading } = useQuery({
-    queryKey: ["/api/codex/stakes", account],
+    queryKey: [`/api/codex/stakes/${account}`],
     enabled: isConnected && !!account,
   });
 
   const stakeMutation = useMutation({
     mutationFn: async (data: { poolId: string; amount: string }) => {
+      const pool = pools?.find((p: any) => p.id === data.poolId);
+      const lockPeriodSeconds = parseInt(pool?.lockPeriod || "0");
+      const unlockDate = new Date(Date.now() + lockPeriodSeconds * 1000).toISOString();
+      
       const response = await fetch("/api/codex/stakes", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          walletAddress: account,
+          poolId: data.poolId,
+          amount: data.amount,
+          unlockDate,
+        }),
         headers: { "Content-Type": "application/json" },
       });
       if (!response.ok) throw new Error("Failed to stake");
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/codex/stakes", account] });
-      queryClient.invalidateQueries({ queryKey: ["/api/codex/holdings", account] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/stakes/${account}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/holdings/${account}`] });
       toast({
         title: "Success",
         description: "Tokens staked successfully!",
@@ -83,8 +92,8 @@ export default function CodexStakingPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/codex/stakes", account] });
-      queryClient.invalidateQueries({ queryKey: ["/api/codex/holdings", account] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/stakes/${account}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/holdings/${account}`] });
       toast({
         title: "Success",
         description: "Rewards claimed successfully!",
@@ -108,8 +117,8 @@ export default function CodexStakingPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/codex/stakes", account] });
-      queryClient.invalidateQueries({ queryKey: ["/api/codex/holdings", account] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/stakes/${account}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/holdings/${account}`] });
       toast({
         title: "Success",
         description: "Tokens unstaked successfully!",

@@ -25,7 +25,7 @@ export default function CodexNftsPage() {
   });
 
   const { data: userNfts, isLoading: nftsLoading } = useQuery({
-    queryKey: ["/api/codex/nfts", account],
+    queryKey: [`/api/codex/nfts/${account}`],
     enabled: isConnected && !!account,
   });
 

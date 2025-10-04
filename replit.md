@@ -39,6 +39,33 @@ The backend is an Express.js and TypeScript REST API with modular routes. It use
   - **Real-time Updates**: Event-driven architecture listening to wallet events (account changes, chain switches, disconnections)
   - **UI Components**: WalletConnectionModal for connections, WalletCard for wallet management, WalletNexusPage as command center
   - Accessible at `/wallet-nexus` (featured in navigation)
+- **CODEX ECOSYSTEM** (NEW - REVOLUTIONARY): Complete platform token economy with AI-powered dynamic NFTs and parametric rewards:
+  - **Platform Token (CDX)**: 1 billion supply ERC-20 governance and utility token with 18 decimals, deployed on Ethereum mainnet
+  - **4 NFT Collections**:
+    - **Founder's Pass** (100 max): Soul-bound, dynamic, 10% royalty, lifetime platform benefits
+    - **Elite Member Pass** (1,000 max): Transferable, dynamic, 7.5% royalty, enhanced rewards
+    - **Genesis Collection** (10,000 max): Collectible NFTs, 5% royalty, first edition exclusivity
+    - **Living Achievements** (unlimited): Revolutionary AI-powered dynamic NFTs that evolve with user activity
+  - **4 Staking Pools** with NFT holder multipliers:
+    - **Flex Pool**: 5% APR, no lock, instant withdrawal, 1.0x NFT bonus
+    - **30-Day Pool**: 12% APR, 30-day lock, 1.2x NFT bonus
+    - **90-Day Pool**: 25% APR, 90-day lock, 1.5x NFT bonus
+    - **365-Day Elite**: 50% APR, 365-day lock, 2.0x NFT bonus
+  - **8 Living Achievements** across 5 categories:
+    - **Trading**: First Trade (bronze), Trading Veteran (gold)
+    - **Staking**: Stake Holder (bronze), Diamond Hands (diamond)
+    - **Gaming**: NFT Collector (silver), Empire Builder (platinum)
+    - **Social**: Social Butterfly (silver)
+    - **Governance**: Governance Pioneer (gold)
+  - **Dynamic NFT Evolution**: AI-powered system tracks user activity and evolves NFT attributes (level, experience, rarity, power score) with evolution log
+  - **18 API Endpoints**: Complete REST API for tokens, NFTs, achievements, staking, rewards, and evolution tracking
+  - **4 Frontend Pages**:
+    - `/codex-dashboard`: Token dashboard with holdings, staking overview, and quick actions
+    - `/codex-nfts`: NFT collections gallery and user NFT showcase
+    - `/codex-achievements`: Achievement tracker with progress bars and tier badges
+    - `/codex-staking`: Staking pools with stake creation, rewards claiming, and unstaking
+  - **Database Schema**: 9 tables (platformToken, tokenHoldings, platformNftCollections, platformUserNfts, platformAchievements, platformUserAchievements, platformNftEvolutionLog, codexStakingPools, codexUserStakes)
+  - **Featured Navigation**: All 4 CODEX pages featured prominently in main navigation
 - **Multi-Chain Wallet Integration**: MetaMask for connections, account data, balances, and transaction signing.
 - **Advanced Wallet Security Protection**: Features a Transaction Validation Engine, Velocity Limits, Emergency Lockdown Mode, Fraud Detection, Blacklist/Whitelist System, Spending Limits, AI Sentinel Monitoring, and readiness for Multi-Signature and Hardware Wallet integrations.
 - **Smart Contract Generators**: Production-ready ERC-20 token and ERC-721/721A/1155 NFT creators with IPFS integration.

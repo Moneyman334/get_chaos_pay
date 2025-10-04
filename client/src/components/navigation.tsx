@@ -31,7 +31,9 @@ import {
   Settings,
   ShoppingCart,
   ShoppingBag,
-  Package
+  Package,
+  Lock,
+  Target
 } from "lucide-react";
 
 interface NavigationProps {
@@ -43,6 +45,10 @@ const navigationItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/empire", label: "Empire", icon: Crown, featured: true },
   { path: "/command-center", label: "Command Center", icon: Activity, featured: true },
+  { path: "/codex-dashboard", label: "CODEX Dashboard", icon: Coins, featured: true },
+  { path: "/codex-staking", label: "CODEX Staking", icon: Lock, featured: true },
+  { path: "/codex-nfts", label: "CODEX NFTs", icon: Sparkles, featured: true },
+  { path: "/codex-achievements", label: "CODEX Achievements", icon: Target, featured: true },
   { path: "/wallet-nexus", label: "Wallet Nexus", icon: Network, featured: true },
   { path: "/trade", label: "Trade Crypto", icon: TrendingUp, featured: true },
   { path: "/products", label: "Shop", icon: ShoppingBag, featured: true },

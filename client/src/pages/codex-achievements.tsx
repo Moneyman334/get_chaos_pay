@@ -56,7 +56,7 @@ export default function CodexAchievementsPage() {
   });
 
   const { data: userProgress, isLoading: progressLoading } = useQuery({
-    queryKey: ["/api/codex/achievements", account],
+    queryKey: [`/api/codex/achievements/${account}`],
     enabled: isConnected && !!account,
   });
 

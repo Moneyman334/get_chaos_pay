@@ -27,7 +27,7 @@ export default function CodexTokenDashboard() {
 
   // Fetch user token holdings
   const { data: holdings, isLoading: holdingsLoading } = useQuery({
-    queryKey: ["/api/codex/holdings", address],
+    queryKey: [`/api/codex/holdings/${address}`],
     enabled: isConnected && !!address,
   });
 
@@ -39,7 +39,7 @@ export default function CodexTokenDashboard() {
 
   // Fetch user stakes
   const { data: userStakes, isLoading: stakesLoading } = useQuery({
-    queryKey: ["/api/codex/stakes", address],
+    queryKey: [`/api/codex/stakes/${address}`],
     enabled: isConnected && !!address,
   });
 
