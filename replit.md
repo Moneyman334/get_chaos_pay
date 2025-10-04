@@ -2,6 +2,13 @@
 
 "Web3 Blockchain Empire" is a comprehensive Web3 blockchain platform aiming to be a complete cryptocurrency ecosystem. It features multi-chain wallet integration, multi-crypto deposits, universal crypto payments, and advanced tools like ERC-20 Token and NFT creators, an AI-powered Sentinel Auto Trading Bot, and robust transaction management. The platform emphasizes a "divine visual experience" with cosmic aesthetics and interactive UI, targeting production readiness. Business ambitions include a blockchain-native e-commerce payment system with multi-currency support, loyalty programs, on-chain NFT receipts, and a Social Media Automation System for Twitter/X.
 
+# Recent Changes (Oct 4, 2025)
+
+## UX Improvements
+1. **Bot Subscription Payment**: Added prominent subscription banner on auto-trading-bot page with $49/mo Premium pricing, dismissible UI, and direct link to /subscriptions page
+2. **Clickable Staking Pools**: Transformed CODEX staking pool selection from dropdown to clickable cards with visual feedback (border highlight, "Selected" badge), smooth auto-scroll to stake form
+3. **Wallet Connection State**: Fixed connection status inconsistency by adding `isCheckingConnection` state to useWeb3 hook; navigation now shows "Checking..." with animated pulse during reconnection, prevents race conditions between localStorage and MetaMask
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
