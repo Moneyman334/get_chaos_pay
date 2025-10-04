@@ -2376,8 +2376,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start bot with strategy
-  app.post("/api/bot/start", async (req, res) => {
+  // Start bot with strategy (advanced bot system)
+  app.post("/api/bot-advanced/start", async (req, res) => {
     try {
       const startSchema = z.object({
         userId: z.string(),
@@ -2435,8 +2435,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Stop bot strategy
-  app.post("/api/bot/stop/:activeStrategyId", async (req, res) => {
+  // Stop bot strategy (advanced bot system)
+  app.post("/api/bot-advanced/stop/:activeStrategyId", async (req, res) => {
     try {
       const { activeStrategyId } = req.params;
       await storage.stopBotStrategy(activeStrategyId);
@@ -2447,8 +2447,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get bot trades
-  app.get("/api/bot/trades/:userId", async (req, res) => {
+  // Get bot trades (advanced bot system)
+  app.get("/api/bot-advanced/trades/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
       const limit = parseInt(req.query.limit as string) || 50;
