@@ -35,8 +35,10 @@ import SubscriptionsPage from "@/pages/subscriptions";
 import AffiliateDashboardPage from "@/pages/affiliate-dashboard";
 import GiftCardsPage from "@/pages/gift-cards";
 import LoyaltyPage from "@/pages/loyalty";
+import CartPage from "@/pages/cart";
 import CartRecoveryPage from "@/pages/cart-recovery";
 import ProductsPage from "@/pages/products";
+import ProductDetailPage from "@/pages/product-detail";
 import WishlistPage from "@/pages/wishlist";
 import CustomerDashboardPage from "@/pages/customer-dashboard";
 import ReviewsPage from "@/pages/reviews";
@@ -115,8 +117,10 @@ function Router() {
       <Route path="/affiliate" component={AffiliateDashboardPage} />
       <Route path="/gift-cards" component={GiftCardsPage} />
       <Route path="/loyalty" component={LoyaltyPage} />
+      <Route path="/cart" component={CartPage} />
       <Route path="/cart-recovery" component={CartRecoveryPage} />
       <Route path="/products" component={ProductsPage} />
+      <Route path="/product/:id" component={ProductDetailPage} />
       <Route path="/wishlist" component={WishlistPage} />
       <Route path="/dashboard" component={CustomerDashboardPage} />
       <Route path="/reviews" component={ReviewsPage} />
