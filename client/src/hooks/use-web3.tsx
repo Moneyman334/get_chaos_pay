@@ -24,6 +24,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 interface Web3State {
   isConnected: boolean;
+  isCheckingConnection: boolean;
   account?: string;
   balance?: string;
   network?: any;
@@ -38,6 +39,7 @@ interface Web3State {
 export function useWeb3() {
   const [state, setState] = useState<Web3State>({
     isConnected: false,
+    isCheckingConnection: false,
   });
   
   const { toast } = useToast();
@@ -48,7 +50,17 @@ export function useWeb3() {
 
   const checkConnection = useCallback(async () => {
     try {
-      if (!window.ethereum) return;
+      updateState({ isCheckingConnection: true });
+      
+      if (!window.ethereum) {
+        updateState({ 
+          isConnected: false, 
+          isCheckingConnection: false 
+        });
+        localStorage.removeItem('web3_connected');
+        localStorage.removeItem('web3_last_account');
+        return;
+      }
       
       const accounts = await window.ethereum.request({ 
         method: 'eth_accounts' 
@@ -92,6 +104,7 @@ export function useWeb3() {
         
         updateState({
           isConnected: true,
+          isCheckingConnection: false,
           account,
           balance: balanceInToken,
           network,
@@ -106,10 +119,22 @@ export function useWeb3() {
         await refreshNetworkInfo();
       } else {
         // Clear connection if no accounts
+        updateState({ 
+          isConnected: false, 
+          isCheckingConnection: false 
+        });
         localStorage.removeItem('web3_connected');
+        localStorage.removeItem('web3_last_account');
       }
     } catch (error) {
       console.error("Failed to check connection:", error);
+      updateState({ 
+        isConnected: false, 
+        isCheckingConnection: false 
+        });
+      // Clear localStorage on error
+      localStorage.removeItem('web3_connected');
+      localStorage.removeItem('web3_last_account');
     }
   }, []);
 

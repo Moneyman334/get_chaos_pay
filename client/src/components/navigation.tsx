@@ -76,7 +76,8 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const { 
-    isConnected, 
+    isConnected,
+    isCheckingConnection,
     account, 
     balance, 
     network, 
@@ -191,19 +192,23 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
                 )}
                 <span 
                   className={`status-dot ${
-                    isConnected 
-                      ? isSupported 
-                        ? 'status-connected' 
-                        : 'status-warning'
-                      : 'status-disconnected'
+                    isCheckingConnection
+                      ? 'status-warning animate-pulse'
+                      : isConnected 
+                        ? isSupported 
+                          ? 'status-connected' 
+                          : 'status-warning'
+                        : 'status-disconnected'
                   }`}
                   data-testid="nav-connection-status-dot"
                 />
                 <div className="flex flex-col">
                   <span className="text-muted-foreground text-xs" data-testid="nav-connection-status-text">
-                    {isConnected 
-                      ? `${network?.name || 'Unknown'}` 
-                      : 'Disconnected'
+                    {isCheckingConnection
+                      ? 'Checking...'
+                      : isConnected 
+                        ? `${network?.name || 'Unknown'}` 
+                        : 'Disconnected'
                     }
                   </span>
                   {isConnected && (
@@ -310,10 +315,11 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
                 <Button 
                   onClick={onConnect}
                   size="sm"
+                  disabled={isCheckingConnection}
                   data-testid="nav-button-connect"
                 >
                   <Wallet className="mr-2 h-4 w-4" />
-                  Connect Wallet
+                  {isCheckingConnection ? 'Checking...' : 'Connect Wallet'}
                 </Button>
               )}
             </div>
