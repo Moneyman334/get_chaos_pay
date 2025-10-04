@@ -129,7 +129,19 @@ import {
   type CodexStakingPool,
   type InsertCodexStakingPool,
   type CodexUserStake,
-  type InsertCodexUserStake
+  type InsertCodexUserStake,
+  codexRelics,
+  codexRelicInstances,
+  codexRelicProgress,
+  codexRelicEffects,
+  type CodexRelic,
+  type InsertCodexRelic,
+  type CodexRelicInstance,
+  type InsertCodexRelicInstance,
+  type CodexRelicProgress,
+  type InsertCodexRelicProgress,
+  type CodexRelicEffect,
+  type InsertCodexRelicEffect
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -450,6 +462,21 @@ export interface IStorage {
   createCodexUserStake(stake: any): Promise<CodexUserStake>;
   claimCodexStakeRewards(stakeId: string): Promise<CodexUserStake | undefined>;
   unstakeCodex(stakeId: string): Promise<CodexUserStake | undefined>;
+  
+  // CODEX Relics methods
+  getCodexRelics(): Promise<CodexRelic[]>;
+  getCodexRelicById(id: string): Promise<CodexRelic | undefined>;
+  getCodexRelicsByClass(relicClass: string): Promise<CodexRelic[]>;
+  getCodexRelicInstances(walletAddress: string): Promise<any[]>;
+  getCodexEquippedRelics(walletAddress: string): Promise<any[]>;
+  createCodexRelicInstance(instance: InsertCodexRelicInstance): Promise<CodexRelicInstance>;
+  equipCodexRelic(instanceId: string, slot: string): Promise<CodexRelicInstance | undefined>;
+  unequipCodexRelic(instanceId: string): Promise<CodexRelicInstance | undefined>;
+  getCodexRelicProgress(walletAddress: string, relicId?: string): Promise<CodexRelicProgress[]>;
+  updateCodexRelicProgress(id: string, updates: Partial<InsertCodexRelicProgress>): Promise<CodexRelicProgress | undefined>;
+  claimCodexRelic(relicId: string, walletAddress: string): Promise<CodexRelicInstance | undefined>;
+  getCodexRelicEffects(walletAddress: string): Promise<CodexRelicEffect[]>;
+  activateCodexRelicEffect(instanceId: string, walletAddress: string): Promise<CodexRelicEffect>;
 }
 
 export class MemStorage implements IStorage {
@@ -3002,6 +3029,188 @@ export class PostgreSQLStorage implements IStorage {
       .where(eq(codexUserStakes.id, stakeId))
       .returning();
     return updated;
+  }
+  
+  // ===== CODEX RELICS METHODS =====
+  
+  async getCodexRelics() {
+    return await db.select().from(codexRelics)
+      .where(eq(codexRelics.isActive, 'true'))
+      .orderBy(codexRelics.tier, codexRelics.name);
+  }
+  
+  async getCodexRelicById(id: string) {
+    const [relic] = await db.select().from(codexRelics)
+      .where(eq(codexRelics.id, id))
+      .limit(1);
+    return relic;
+  }
+  
+  async getCodexRelicsByClass(relicClass: string) {
+    return await db.select().from(codexRelics)
+      .where(and(
+        eq(codexRelics.class, relicClass),
+        eq(codexRelics.isActive, 'true')
+      ))
+      .orderBy(codexRelics.tier, codexRelics.name);
+  }
+  
+  async getCodexRelicInstances(walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    const instances = await db.select().from(codexRelicInstances)
+      .where(eq(codexRelicInstances.walletAddress, normalized))
+      .orderBy(desc(codexRelicInstances.acquiredAt));
+    
+    // Join with relic details
+    const relicsMap = new Map(
+      (await this.getCodexRelics()).map(r => [r.id, r])
+    );
+    
+    return instances.map(instance => ({
+      ...instance,
+      relic: relicsMap.get(instance.relicId)
+    }));
+  }
+  
+  async getCodexEquippedRelics(walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    const instances = await db.select().from(codexRelicInstances)
+      .where(and(
+        eq(codexRelicInstances.walletAddress, normalized),
+        eq(codexRelicInstances.isEquipped, 'true')
+      ))
+      .orderBy(codexRelicInstances.equipSlot);
+    
+    // Join with relic details
+    const relicsMap = new Map(
+      (await this.getCodexRelics()).map(r => [r.id, r])
+    );
+    
+    return instances.map(instance => ({
+      ...instance,
+      relic: relicsMap.get(instance.relicId)
+    }));
+  }
+  
+  async createCodexRelicInstance(instance: InsertCodexRelicInstance) {
+    const normalized = normalizeAddress(instance.walletAddress);
+    const [created] = await db.insert(codexRelicInstances)
+      .values({ ...instance, walletAddress: normalized })
+      .returning();
+    return created;
+  }
+  
+  async equipCodexRelic(instanceId: string, slot: string) {
+    const [updated] = await db.update(codexRelicInstances)
+      .set({ 
+        isEquipped: 'true',
+        equipSlot: slot
+      })
+      .where(eq(codexRelicInstances.id, instanceId))
+      .returning();
+    return updated;
+  }
+  
+  async unequipCodexRelic(instanceId: string) {
+    const [updated] = await db.update(codexRelicInstances)
+      .set({ 
+        isEquipped: 'false',
+        equipSlot: null
+      })
+      .where(eq(codexRelicInstances.id, instanceId))
+      .returning();
+    return updated;
+  }
+  
+  async getCodexRelicProgress(walletAddress: string, relicId?: string) {
+    const normalized = normalizeAddress(walletAddress);
+    
+    if (relicId) {
+      return await db.select().from(codexRelicProgress)
+        .where(and(
+          eq(codexRelicProgress.walletAddress, normalized),
+          eq(codexRelicProgress.relicId, relicId)
+        ));
+    }
+    
+    return await db.select().from(codexRelicProgress)
+      .where(eq(codexRelicProgress.walletAddress, normalized))
+      .orderBy(desc(codexRelicProgress.lastUpdated));
+  }
+  
+  async updateCodexRelicProgress(id: string, updates: Partial<InsertCodexRelicProgress>) {
+    const [updated] = await db.update(codexRelicProgress)
+      .set({ ...updates, lastUpdated: new Date() })
+      .where(eq(codexRelicProgress.id, id))
+      .returning();
+    return updated;
+  }
+  
+  async claimCodexRelic(relicId: string, walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    
+    // Check if progress is complete
+    const progress = await this.getCodexRelicProgress(normalized, relicId);
+    const allComplete = progress.every(p => p.isCompleted === 'true');
+    
+    if (!progress.length || !allComplete) {
+      throw new Error('Relic requirements not met');
+    }
+    
+    // Create relic instance
+    const instance = await this.createCodexRelicInstance({
+      relicId,
+      walletAddress: normalized,
+      isEquipped: 'false',
+      level: '1',
+      experience: '0',
+      powerScore: '100'
+    });
+    
+    return instance;
+  }
+  
+  async getCodexRelicEffects(walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    return await db.select().from(codexRelicEffects)
+      .where(and(
+        eq(codexRelicEffects.walletAddress, normalized),
+        eq(codexRelicEffects.isActive, 'true')
+      ))
+      .orderBy(codexRelicEffects.activatedAt);
+  }
+  
+  async activateCodexRelicEffect(instanceId: string, walletAddress: string) {
+    const normalized = normalizeAddress(walletAddress);
+    
+    // Get the relic instance
+    const [instance] = await db.select().from(codexRelicInstances)
+      .where(eq(codexRelicInstances.id, instanceId))
+      .limit(1);
+    
+    if (!instance) {
+      throw new Error('Relic instance not found');
+    }
+    
+    // Get the relic details
+    const relic = await this.getCodexRelicById(instance.relicId);
+    
+    if (!relic) {
+      throw new Error('Relic not found');
+    }
+    
+    // Create the effect
+    const [effect] = await db.insert(codexRelicEffects)
+      .values({
+        instanceId,
+        walletAddress: normalized,
+        effectType: relic.effectType,
+        effectValue: relic.effectValue,
+        isActive: 'true'
+      })
+      .returning();
+    
+    return effect;
   }
 }
 
