@@ -4,6 +4,10 @@
 
 # Recent Changes (Oct 4, 2025)
 
+## Bug Fixes
+1. **Staking Error Messages**: Fixed error handling in CODEX staking - now displays actual backend error messages instead of generic "Failed to stake" message; improved debugging experience by showing specific validation errors
+2. **Trading Bot Error Messages**: Enhanced error handling in Auto Trading Bot - now shows specific error messages from backend instead of generic "Unable to connect to trading bot"; includes helpful fallback messages for better user experience
+
 ## UX Improvements
 1. **Bot Subscription Payment**: Added prominent subscription banner on auto-trading-bot page with $49/mo Premium pricing, dismissible UI, and direct link to /subscriptions page
 2. **Clickable Staking Pools**: Transformed CODEX staking pool selection from dropdown to clickable cards with visual feedback (border highlight, "Selected" badge), smooth auto-scroll to stake form
