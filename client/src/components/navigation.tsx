@@ -176,7 +176,7 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:block">
+          <nav className="hidden lg:block max-w-2xl overflow-x-auto scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
             <NavLinks />
           </nav>
 
