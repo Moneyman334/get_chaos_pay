@@ -512,7 +512,11 @@ export default function TradePage() {
                 ) : (
                   <div className="space-y-2">
                     {openOrders.map((order: any) => (
-                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-primary/5">
+                      <div 
+                        key={order.id} 
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-primary/5"
+                        data-testid={`card-order-${order.id}`}
+                      >
                         <div className="flex items-center gap-4">
                           <Badge variant={order.side === 'buy' ? 'default' : 'destructive'}>
                             {order.side.toUpperCase()}
@@ -547,7 +551,11 @@ export default function TradePage() {
                 ) : (
                   <div className="space-y-2">
                     {orderHistory.slice(0, 20).map((order: any) => (
-                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div 
+                        key={order.id} 
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                        data-testid={`card-order-${order.id}`}
+                      >
                         <div className="flex items-center gap-4">
                           <Badge variant={order.side === 'buy' ? 'default' : 'destructive'}>
                             {order.side.toUpperCase()}
