@@ -16,7 +16,8 @@ import {
   Lock,
   Crown,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Flame
 } from "lucide-react";
 import { useWeb3 } from "@/hooks/use-web3";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -46,6 +47,7 @@ export default function CodexRelicsPage() {
   const { account, isConnected } = useWeb3();
   const { toast } = useToast();
   const [selectedClass, setSelectedClass] = useState("chronicle");
+  const [mainTab, setMainTab] = useState("catalog");
 
   const { data: relics, isLoading: relicsLoading } = useQuery({
     queryKey: ["/api/codex/relics"],
@@ -160,323 +162,404 @@ export default function CodexRelicsPage() {
           </p>
         </div>
 
-        {!isConnected ? (
-          <Card className="mb-8 bg-gradient-to-br from-purple-600/20 to-indigo-600/20 dark:from-purple-900/30 dark:to-indigo-900/30 border-purple-400/30">
-            <CardContent className="pt-6">
-              <div className="text-center py-12">
-                <Wallet className="w-20 h-20 text-purple-400 mx-auto mb-4" />
-                <h3 className="text-2xl font-bold text-white mb-3">Connect Your Wallet</h3>
-                <p className="text-purple-200 mb-6">
-                  Connect your wallet to view and equip your relics
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* Equipped Relics (Loadout) */}
-            <Card className="mb-8 bg-gradient-to-br from-purple-600/20 to-pink-600/20 dark:from-purple-900/30 dark:to-pink-900/30 border-purple-400/30">
+        <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-purple-900/30 mb-6 h-12">
+            <TabsTrigger 
+              value="catalog" 
+              className="data-[state=active]:bg-purple-600/50 text-white"
+              data-testid="tab-catalog"
+            >
+              <Scroll className="w-4 h-4 mr-2" />
+              Catalog
+            </TabsTrigger>
+            <TabsTrigger 
+              value="forge" 
+              className="data-[state=active]:bg-purple-600/50 text-white"
+              data-testid="tab-forge"
+            >
+              <Flame className="w-4 h-4 mr-2" />
+              Forge
+            </TabsTrigger>
+            <TabsTrigger 
+              value="my-relics" 
+              className="data-[state=active]:bg-purple-600/50 text-white"
+              data-testid="tab-my-relics"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              My Relics
+            </TabsTrigger>
+          </TabsList>
+
+          {/* CATALOG TAB */}
+          <TabsContent value="catalog" className="space-y-6">
+            <Card className="bg-gradient-to-br from-purple-600/20 to-indigo-600/20 dark:from-purple-900/30 dark:to-indigo-900/30 border-purple-400/30">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-purple-400" />
-                  Active Loadout (3 Slots Maximum)
-                </CardTitle>
+                <CardTitle className="text-white">Relic Catalog</CardTitle>
                 <CardDescription className="text-purple-200">
-                  Your currently equipped relics and their active effects
+                  Discover all available relics and their acquisition paths
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {equippedLoading ? (
-                    [...Array(3)].map((_, i) => (
-                      <Skeleton key={i} className="h-32 bg-purple-800/30" />
-                    ))
-                  ) : equippedRelics && equippedRelics.length > 0 ? (
-                    equippedRelics.map((instance: any) => {
-                      const relic = instance.relic;
-                      const EffectIcon = effectIcons[relic?.effectType] || Sparkles;
-                      
+                <Tabs defaultValue="chronicle" value={selectedClass} onValueChange={setSelectedClass} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 bg-purple-900/30 mb-6">
+                    {classes.map((relicClass) => {
+                      const Icon = classIcons[relicClass] || Scroll;
                       return (
-                        <Card 
-                          key={instance.id}
-                          className="bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border-purple-400/40"
-                          data-testid={`equipped-relic-${instance.id}`}
+                        <TabsTrigger
+                          key={relicClass}
+                          value={relicClass}
+                          className="data-[state=active]:bg-purple-600/50"
+                          data-testid={`filter-${relicClass}`}
                         >
-                          <CardContent className="pt-4">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex-1">
-                                <h4 className="font-bold text-white text-sm" data-testid={`text-equipped-name-${instance.id}`}>
-                                  {relic?.name}
-                                </h4>
-                                <Badge className={`mt-1 bg-gradient-to-r ${tierColors[relic?.tier] || tierColors.common} text-white text-xs`}>
-                                  {relic?.tier}
-                                </Badge>
-                              </div>
-                              <CheckCircle2 className="w-5 h-5 text-green-400" />
-                            </div>
-                            <div className="flex items-center gap-2 text-purple-300 text-xs mb-2">
-                              <EffectIcon className="w-4 h-4" />
-                              <span>{relic?.effectDescription}</span>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => unequipMutation.mutate(instance.id)}
-                              disabled={unequipMutation.isPending}
-                              className="w-full"
-                              data-testid={`button-unequip-${instance.id}`}
-                            >
-                              Unequip
-                            </Button>
-                          </CardContent>
-                        </Card>
+                          <Icon className="w-4 h-4 mr-2" />
+                          {relicClass.charAt(0).toUpperCase() + relicClass.slice(1)}
+                        </TabsTrigger>
                       );
-                    })
-                  ) : (
-                    <div className="col-span-3 text-center py-8">
-                      <Lock className="w-12 h-12 text-purple-400 mx-auto mb-2" />
-                      <p className="text-purple-300">No relics equipped. Equip relics below to activate their effects.</p>
-                    </div>
-                  )}
-                </div>
+                    })}
+                  </TabsList>
+
+                  {classes.map((relicClass) => (
+                    <TabsContent key={relicClass} value={relicClass} className="space-y-4">
+                      {relicsLoading ? (
+                        <div className="space-y-4">
+                          {[...Array(3)].map((_, i) => (
+                            <Skeleton key={i} className="h-48 bg-purple-800/30" />
+                          ))}
+                        </div>
+                      ) : (
+                        groupedRelics[relicClass]?.map((relic: any) => {
+                          const instance = getUserInstance(relic.id);
+                          const ClassIcon = classIcons[relic.class] || Scroll;
+                          const EffectIcon = effectIcons[relic.effectType] || Sparkles;
+                          const owned = !!instance;
+
+                          return (
+                            <Card
+                              key={relic.id}
+                              className={`bg-gradient-to-br ${
+                                owned
+                                  ? "from-emerald-900/40 to-green-900/40 border-emerald-400/30"
+                                  : "from-purple-900/40 to-indigo-900/40 border-purple-400/30"
+                              } hover:border-purple-400/60 transition-all`}
+                              data-testid={`card-relic-${relic.id}`}
+                            >
+                              <CardHeader>
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <ClassIcon className="w-6 h-6 text-purple-400" />
+                                      <CardTitle className="text-white text-xl" data-testid={`text-relic-name-${relic.id}`}>
+                                        {relic.name}
+                                      </CardTitle>
+                                      {owned && (
+                                        <CheckCircle2 className="w-5 h-5 text-green-400" data-testid={`icon-owned-${relic.id}`} />
+                                      )}
+                                    </div>
+                                    <CardDescription className="text-purple-200">
+                                      {relic.description}
+                                    </CardDescription>
+                                  </div>
+                                  <Badge className={`bg-gradient-to-r ${tierColors[relic.tier.toLowerCase()] || tierColors.common} text-white`}>
+                                    {relic.tier}
+                                  </Badge>
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="space-y-4">
+                                  <div className="flex items-start gap-2 p-3 bg-purple-800/30 rounded-lg">
+                                    <EffectIcon className="w-5 h-5 text-purple-400 mt-0.5" />
+                                    <div>
+                                      <p className="text-sm font-semibold text-purple-300">Effect:</p>
+                                      <p className="text-white">{relic.effectDescription}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-start gap-2 p-3 bg-indigo-800/30 rounded-lg">
+                                    <AlertCircle className="w-5 h-5 text-indigo-400 mt-0.5" />
+                                    <div className="flex-1">
+                                      <p className="text-sm font-semibold text-indigo-300 mb-1">How to Acquire:</p>
+                                      <div className="text-sm text-white">
+                                        {relic.acquisitionType === 'milestone' && (
+                                          <div>
+                                            <p className="font-medium text-indigo-200 mb-1">Complete Milestones:</p>
+                                            {Object.entries(relic.acquisitionRequirements).map(([key, value]: [string, any]) => (
+                                              <p key={key} className="text-purple-300">
+                                                • {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}: {value}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {relic.acquisitionType === 'forge' && (
+                                          <div>
+                                            <p className="font-medium text-indigo-200 mb-1">Relic Forge (Burn Resources):</p>
+                                            {Object.entries(relic.acquisitionRequirements).map(([key, value]: [string, any]) => (
+                                              <p key={key} className="text-purple-300">
+                                                • {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}: {value}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {relic.acquisitionType === 'vault_ritual' && (
+                                          <div>
+                                            <p className="font-medium text-indigo-200 mb-1">House Vault Ritual:</p>
+                                            {Object.entries(relic.acquisitionRequirements).map(([key, value]: [string, any]) => (
+                                              <p key={key} className="text-purple-300">
+                                                • {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}: {value} ETH
+                                              </p>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {owned && instance && (
+                                    <div className="flex items-center gap-2 text-green-400 bg-green-900/20 p-2 rounded">
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      <span className="text-sm">You own this relic (Level {instance.level})</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })
+                      )}
+                    </TabsContent>
+                  ))}
+                </Tabs>
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* My Relics Inventory */}
-            {userInstances && userInstances.length > 0 && (
-              <Card className="mb-8 bg-gradient-to-br from-indigo-600/20 to-blue-600/20 dark:from-indigo-900/30 dark:to-blue-900/30 border-indigo-400/30">
-                <CardHeader>
-                  <CardTitle className="text-white">My Relics</CardTitle>
-                  <CardDescription className="text-indigo-200">
-                    Relics you've earned and can equip
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {instancesLoading ? (
-                      [...Array(3)].map((_, i) => (
-                        <Skeleton key={i} className="h-48 bg-indigo-800/30" />
-                      ))
-                    ) : (
-                      userInstances.map((instance: any) => {
-                        const relic = instance.relic;
-                        const ClassIcon = classIcons[relic?.class] || Scroll;
-                        const EffectIcon = effectIcons[relic?.effectType] || Sparkles;
-                        const isEquipped = instance.isEquipped === 'true';
+          {/* FORGE TAB */}
+          <TabsContent value="forge" className="space-y-6">
+            <Card className="bg-gradient-to-br from-orange-600/20 to-red-600/20 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400/30">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Flame className="w-6 h-6 text-orange-400" />
+                  Relic Forge
+                </CardTitle>
+                <CardDescription className="text-orange-200">
+                  Burn resources to craft powerful relics
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!isConnected ? (
+                  <div className="text-center py-12">
+                    <Wallet className="w-20 h-20 text-orange-400 mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold text-white mb-3">Connect Your Wallet</h3>
+                    <p className="text-orange-200 mb-6">
+                      Connect your wallet to access the Relic Forge
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Flame className="w-20 h-20 text-orange-400 mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold text-white mb-3">Forge Coming Soon</h3>
+                    <p className="text-orange-200">
+                      The Relic Forge will allow you to burn CDX tokens and NFTs to craft rare relics
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                        return (
-                          <Card
-                            key={instance.id}
-                            className={`bg-gradient-to-br ${
-                              isEquipped
-                                ? "from-green-900/40 to-emerald-900/40 border-green-400/50"
-                                : "from-indigo-900/40 to-purple-900/40 border-indigo-400/30"
-                            } hover:border-purple-400/60 transition-all`}
-                            data-testid={`card-owned-relic-${instance.id}`}
-                          >
-                            <CardHeader>
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <CardTitle className="text-white text-lg flex items-center gap-2">
-                                    <ClassIcon className="w-5 h-5" />
-                                    {relic?.name}
-                                  </CardTitle>
-                                  <CardDescription className="text-purple-200 mt-1">
-                                    {relic?.description}
-                                  </CardDescription>
+          {/* MY RELICS TAB */}
+          <TabsContent value="my-relics" className="space-y-6">
+            {!isConnected ? (
+              <Card className="bg-gradient-to-br from-purple-600/20 to-indigo-600/20 dark:from-purple-900/30 dark:to-indigo-900/30 border-purple-400/30">
+                <CardContent className="pt-6">
+                  <div className="text-center py-12">
+                    <Wallet className="w-20 h-20 text-purple-400 mx-auto mb-4" />
+                    <h3 className="text-2xl font-bold text-white mb-3">Connect Your Wallet</h3>
+                    <p className="text-purple-200 mb-6">
+                      Connect your wallet to view and equip your relics
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Equipped Relics (Loadout) */}
+                <Card className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 dark:from-purple-900/30 dark:to-pink-900/30 border-purple-400/30">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-purple-400" />
+                      Active Loadout (3 Slots Maximum)
+                    </CardTitle>
+                    <CardDescription className="text-purple-200">
+                      Your currently equipped relics and their active effects
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {equippedLoading ? (
+                        [...Array(3)].map((_, i) => (
+                          <Skeleton key={i} className="h-32 bg-purple-800/30" />
+                        ))
+                      ) : equippedRelics && equippedRelics.length > 0 ? (
+                        equippedRelics.map((instance: any) => {
+                          const relic = instance.relic;
+                          const EffectIcon = effectIcons[relic?.effectType] || Sparkles;
+                          
+                          return (
+                            <Card 
+                              key={instance.id}
+                              className="bg-gradient-to-br from-purple-900/50 to-indigo-900/50 border-purple-400/40"
+                              data-testid={`equipped-relic-${instance.id}`}
+                            >
+                              <CardContent className="pt-4">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <h4 className="font-bold text-white text-sm" data-testid={`text-equipped-name-${instance.id}`}>
+                                      {relic?.name}
+                                    </h4>
+                                    <Badge className={`mt-1 bg-gradient-to-r ${tierColors[relic?.tier] || tierColors.common} text-white text-xs`}>
+                                      {relic?.tier}
+                                    </Badge>
+                                  </div>
+                                  <CheckCircle2 className="w-5 h-5 text-green-400" />
                                 </div>
-                                <Badge className={`bg-gradient-to-r ${tierColors[relic?.tier] || tierColors.common} text-white`}>
-                                  {relic?.tier}
-                                </Badge>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="flex items-center gap-2 text-purple-300 mb-3">
-                                <EffectIcon className="w-4 h-4" />
-                                <span className="text-sm">{relic?.effectDescription}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-purple-400 mb-4">
-                                <span>Level {instance.level}</span>
-                                <span>•</span>
-                                <span>Power: {instance.powerScore}</span>
-                              </div>
-                              {isEquipped ? (
+                                <div className="flex items-center gap-2 text-purple-300 text-xs mb-2">
+                                  <EffectIcon className="w-4 h-4" />
+                                  <span>{relic?.effectDescription}</span>
+                                </div>
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => unequipMutation.mutate(instance.id)}
                                   disabled={unequipMutation.isPending}
                                   className="w-full"
-                                  data-testid={`button-unequip-inventory-${instance.id}`}
+                                  data-testid={`button-unequip-${instance.id}`}
                                 >
-                                  <Lock className="w-4 h-4 mr-2" />
                                   Unequip
                                 </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleEquip(instance.id)}
-                                  disabled={equipMutation.isPending || (equippedRelics?.length || 0) >= 3}
-                                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
-                                  data-testid={`button-equip-${instance.id}`}
-                                >
-                                  <Shield className="w-4 h-4 mr-2" />
-                                  Equip
-                                </Button>
-                              )}
-                            </CardContent>
-                          </Card>
-                        );
-                      })
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
-
-        {/* All Relics Catalog */}
-        <Card className="bg-gradient-to-br from-purple-600/20 to-indigo-600/20 dark:from-purple-900/30 dark:to-indigo-900/30 border-purple-400/30">
-          <CardHeader>
-            <CardTitle className="text-white">Relic Catalog</CardTitle>
-            <CardDescription className="text-purple-200">
-              Discover all available relics and their acquisition paths
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="chronicle" value={selectedClass} onValueChange={setSelectedClass} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-purple-900/30 mb-6">
-                {classes.map((relicClass) => {
-                  const Icon = classIcons[relicClass] || Scroll;
-                  return (
-                    <TabsTrigger
-                      key={relicClass}
-                      value={relicClass}
-                      className="data-[state=active]:bg-purple-600/50"
-                      data-testid={`tab-${relicClass}`}
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {relicClass.charAt(0).toUpperCase() + relicClass.slice(1)}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-
-              {classes.map((relicClass) => (
-                <TabsContent key={relicClass} value={relicClass} className="space-y-4">
-                  {relicsLoading ? (
-                    <div className="space-y-4">
-                      {[...Array(3)].map((_, i) => (
-                        <Skeleton key={i} className="h-48 bg-purple-800/30" />
-                      ))}
+                              </CardContent>
+                            </Card>
+                          );
+                        })
+                      ) : (
+                        <div className="col-span-3 text-center py-8">
+                          <Lock className="w-12 h-12 text-purple-400 mx-auto mb-2" />
+                          <p className="text-purple-300">No relics equipped. Equip relics below to activate their effects.</p>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    groupedRelics[relicClass]?.map((relic: any) => {
-                      const instance = getUserInstance(relic.id);
-                      const ClassIcon = classIcons[relic.class] || Scroll;
-                      const EffectIcon = effectIcons[relic.effectType] || Sparkles;
-                      const owned = !!instance;
+                  </CardContent>
+                </Card>
 
-                      return (
-                        <Card
-                          key={relic.id}
-                          className={`bg-gradient-to-br ${
-                            owned
-                              ? "from-emerald-900/40 to-green-900/40 border-emerald-400/30"
-                              : "from-purple-900/40 to-indigo-900/40 border-purple-400/30"
-                          } hover:border-purple-400/60 transition-all`}
-                          data-testid={`card-relic-${relic.id}`}
-                        >
-                          <CardHeader>
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <ClassIcon className="w-6 h-6 text-purple-400" />
-                                  <CardTitle className="text-white text-xl" data-testid={`text-relic-name-${relic.id}`}>
-                                    {relic.name}
-                                  </CardTitle>
-                                  {owned && (
-                                    <CheckCircle2 className="w-5 h-5 text-green-400" data-testid={`icon-owned-${relic.id}`} />
-                                  )}
-                                </div>
-                                <CardDescription className="text-purple-200">
-                                  {relic.description}
-                                </CardDescription>
-                              </div>
-                              <Badge className={`bg-gradient-to-r ${tierColors[relic.tier.toLowerCase()] || tierColors.common} text-white`}>
-                                {relic.tier}
-                              </Badge>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-4">
-                              {/* Effect */}
-                              <div className="flex items-start gap-2 p-3 bg-purple-800/30 rounded-lg">
-                                <EffectIcon className="w-5 h-5 text-purple-400 mt-0.5" />
-                                <div>
-                                  <p className="text-sm font-semibold text-purple-300">Effect:</p>
-                                  <p className="text-white">{relic.effectDescription}</p>
-                                </div>
-                              </div>
+                {/* My Relics Inventory */}
+                <Card className="bg-gradient-to-br from-indigo-600/20 to-blue-600/20 dark:from-indigo-900/30 dark:to-blue-900/30 border-indigo-400/30">
+                  <CardHeader>
+                    <CardTitle className="text-white">My Relics</CardTitle>
+                    <CardDescription className="text-indigo-200">
+                      Relics you've earned and can equip
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {instancesLoading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[...Array(3)].map((_, i) => (
+                          <Skeleton key={i} className="h-48 bg-indigo-800/30" />
+                        ))}
+                      </div>
+                    ) : userInstances && userInstances.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {userInstances.map((instance: any) => {
+                          const relic = instance.relic;
+                          const ClassIcon = classIcons[relic?.class] || Scroll;
+                          const EffectIcon = effectIcons[relic?.effectType] || Sparkles;
+                          const isEquipped = instance.isEquipped === 'true';
 
-                              {/* Acquisition */}
-                              <div className="flex items-start gap-2 p-3 bg-indigo-800/30 rounded-lg">
-                                <AlertCircle className="w-5 h-5 text-indigo-400 mt-0.5" />
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold text-indigo-300 mb-1">How to Acquire:</p>
-                                  <div className="text-sm text-white">
-                                    {relic.acquisitionType === 'milestone' && (
-                                      <div>
-                                        <p className="font-medium text-indigo-200 mb-1">Complete Milestones:</p>
-                                        {Object.entries(relic.acquisitionRequirements).map(([key, value]: [string, any]) => (
-                                          <p key={key} className="text-purple-300">
-                                            • {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}: {value}
-                                          </p>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {relic.acquisitionType === 'forge' && (
-                                      <div>
-                                        <p className="font-medium text-indigo-200 mb-1">Relic Forge (Burn Resources):</p>
-                                        {Object.entries(relic.acquisitionRequirements).map(([key, value]: [string, any]) => (
-                                          <p key={key} className="text-purple-300">
-                                            • {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}: {value}
-                                          </p>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {relic.acquisitionType === 'vault_ritual' && (
-                                      <div>
-                                        <p className="font-medium text-indigo-200 mb-1">House Vault Ritual:</p>
-                                        {Object.entries(relic.acquisitionRequirements).map(([key, value]: [string, any]) => (
-                                          <p key={key} className="text-purple-300">
-                                            • {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}: {value} ETH
-                                          </p>
-                                        ))}
-                                      </div>
-                                    )}
+                          return (
+                            <Card
+                              key={instance.id}
+                              className={`bg-gradient-to-br ${
+                                isEquipped
+                                  ? "from-green-900/40 to-emerald-900/40 border-green-400/50"
+                                  : "from-indigo-900/40 to-purple-900/40 border-indigo-400/30"
+                              } hover:border-purple-400/60 transition-all`}
+                              data-testid={`card-owned-relic-${instance.id}`}
+                            >
+                              <CardHeader>
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <CardTitle className="text-white text-lg flex items-center gap-2">
+                                      <ClassIcon className="w-5 h-5" />
+                                      {relic?.name}
+                                    </CardTitle>
+                                    <CardDescription className="text-purple-200 mt-1">
+                                      {relic?.description}
+                                    </CardDescription>
                                   </div>
+                                  <Badge className={`bg-gradient-to-r ${tierColors[relic?.tier] || tierColors.common} text-white`}>
+                                    {relic?.tier}
+                                  </Badge>
                                 </div>
-                              </div>
-
-                              {owned && instance && (
-                                <div className="flex items-center gap-2 text-green-400 bg-green-900/20 p-2 rounded">
-                                  <CheckCircle2 className="w-4 h-4" />
-                                  <span className="text-sm">You own this relic (Level {instance.level})</span>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="flex items-center gap-2 text-purple-300 mb-3">
+                                  <EffectIcon className="w-4 h-4" />
+                                  <span className="text-sm">{relic?.effectDescription}</span>
                                 </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
-          </CardContent>
-        </Card>
+                                <div className="flex items-center gap-2 text-xs text-purple-400 mb-4">
+                                  <span>Level {instance.level}</span>
+                                  <span>•</span>
+                                  <span>Power: {instance.powerScore}</span>
+                                </div>
+                                {isEquipped ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => unequipMutation.mutate(instance.id)}
+                                    disabled={unequipMutation.isPending}
+                                    className="w-full"
+                                    data-testid={`button-unequip-inventory-${instance.id}`}
+                                  >
+                                    <Lock className="w-4 h-4 mr-2" />
+                                    Unequip
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleEquip(instance.id)}
+                                    disabled={equipMutation.isPending || (equippedRelics?.length || 0) >= 3}
+                                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                                    data-testid={`button-equip-${instance.id}`}
+                                  >
+                                    <Shield className="w-4 h-4 mr-2" />
+                                    Equip
+                                  </Button>
+                                )}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <Scroll className="w-20 h-20 text-indigo-400 mx-auto mb-4" />
+                        <h3 className="text-2xl font-bold text-white mb-3">No Relics Yet</h3>
+                        <p className="text-indigo-200 mb-6">
+                          Complete milestones or use the Forge to acquire your first relic
+                        </p>
+                        <Button 
+                          onClick={() => setMainTab("catalog")}
+                          className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                          data-testid="button-view-catalog"
+                        >
+                          View Catalog
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
