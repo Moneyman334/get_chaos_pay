@@ -5939,6 +5939,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================
+  // CODEX RELICS ROUTES
+  // ========================
+
+  // Get all relics catalog
+  app.get("/api/codex/relics", async (req, res) => {
+    try {
+      const relics = await storage.getCodexRelics();
+      res.json(relics);
+    } catch (error) {
+      console.error("Failed to fetch relics:", error);
+      res.status(500).json({ error: "Failed to fetch relics" });
+    }
+  });
+
+  // Get relics by class
+  app.get("/api/codex/relics/class/:class", async (req, res) => {
+    try {
+      const relics = await storage.getCodexRelicsByClass(req.params.class);
+      res.json(relics);
+    } catch (error) {
+      console.error("Failed to fetch relics by class:", error);
+      res.status(500).json({ error: "Failed to fetch relics" });
+    }
+  });
+
+  // Get user's relic instances
+  app.get("/api/codex/relics/instances/:walletAddress", async (req, res) => {
+    try {
+      const instances = await storage.getCodexRelicInstances(req.params.walletAddress);
+      res.json(instances);
+    } catch (error) {
+      console.error("Failed to fetch relic instances:", error);
+      res.status(500).json({ error: "Failed to fetch relic instances" });
+    }
+  });
+
+  // Get user's equipped relics
+  app.get("/api/codex/relics/equipped/:walletAddress", async (req, res) => {
+    try {
+      const equipped = await storage.getCodexEquippedRelics(req.params.walletAddress);
+      res.json(equipped);
+    } catch (error) {
+      console.error("Failed to fetch equipped relics:", error);
+      res.status(500).json({ error: "Failed to fetch equipped relics" });
+    }
+  });
+
+  // Equip a relic
+  app.post("/api/codex/relics/equip", async (req, res) => {
+    try {
+      const equipSchema = z.object({
+        instanceId: z.string(),
+        slot: z.enum(['slot1', 'slot2', 'slot3'])
+      });
+
+      const data = equipSchema.parse(req.body);
+      const updated = await storage.equipCodexRelic(data.instanceId, data.slot);
+
+      if (!updated) {
+        return res.status(404).json({ error: "Relic instance not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      console.error("Failed to equip relic:", error);
+      res.status(500).json({ error: "Failed to equip relic" });
+    }
+  });
+
+  // Unequip a relic
+  app.post("/api/codex/relics/unequip", async (req, res) => {
+    try {
+      const unequipSchema = z.object({
+        instanceId: z.string()
+      });
+
+      const data = unequipSchema.parse(req.body);
+      const updated = await storage.unequipCodexRelic(data.instanceId);
+
+      if (!updated) {
+        return res.status(404).json({ error: "Relic instance not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      console.error("Failed to unequip relic:", error);
+      res.status(500).json({ error: "Failed to unequip relic" });
+    }
+  });
+
+  // Get relic progress for user
+  app.get("/api/codex/relics/progress/:walletAddress", async (req, res) => {
+    try {
+      const progress = await storage.getCodexRelicProgress(req.params.walletAddress);
+      res.json(progress);
+    } catch (error) {
+      console.error("Failed to fetch relic progress:", error);
+      res.status(500).json({ error: "Failed to fetch relic progress" });
+    }
+  });
+
+  // Claim a relic (when all requirements met)
+  app.post("/api/codex/relics/claim", async (req, res) => {
+    try {
+      const claimSchema = z.object({
+        relicId: z.string(),
+        walletAddress: z.string()
+      });
+
+      const data = claimSchema.parse(req.body);
+      const instance = await storage.claimCodexRelic(data.relicId, data.walletAddress);
+
+      res.status(201).json(instance);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid data", details: error.errors });
+      }
+      console.error("Failed to claim relic:", error);
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : "Failed to claim relic" 
+      });
+    }
+  });
+
+  // Get active relic effects
+  app.get("/api/codex/relics/effects/:walletAddress", async (req, res) => {
+    try {
+      const effects = await storage.getCodexRelicEffects(req.params.walletAddress);
+      res.json(effects);
+    } catch (error) {
+      console.error("Failed to fetch relic effects:", error);
+      res.status(500).json({ error: "Failed to fetch relic effects" });
+    }
+  });
+
+  // ========================
   // AUTO-DEPLOY ROUTES
   // ========================
 
