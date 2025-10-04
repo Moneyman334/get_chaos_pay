@@ -358,14 +358,6 @@ export default function AutoCompoundPage() {
                           className="w-full"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (!account) {
-                              toast({
-                                title: "Wallet Required",
-                                description: "Please connect your wallet to stake",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
                             setSelectedPool(pool);
                           }}
                           data-testid={`button-stake-${pool.id}`}
