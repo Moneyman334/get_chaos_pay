@@ -25,6 +25,10 @@ import {
   TrendingUp,
   Gift
 } from "lucide-react";
+import medusaCartoon from "@assets/ChatGPT Image Oct 4, 2025, 07_32_25 PM_1759628419955.png";
+import medusaCyborg from "@assets/ChatGPT Image Oct 4, 2025, 07_37_02 PM_1759628392270.png";
+import medusaNeon from "@assets/Neon Cyborg Medusa in Glow_1759628441099.png";
+import medusaPsychedelic from "@assets/ChatGPT Image Oct 4, 2025, 07_50_40 PM_1759629084543.png";
 
 interface CasinoTokenConfig {
   name: string;
@@ -130,6 +134,84 @@ export default function CasinoTokenEcosystemPage() {
     { id: "rare", name: "Rare", power: "2x", color: "text-blue-400" },
     { id: "epic", name: "Epic", power: "3x", color: "text-purple-400" },
     { id: "legendary", name: "Legendary", power: "5x", color: "text-yellow-400" },
+  ];
+
+  const medusaNFTCollection = [
+    {
+      id: "medusa-gold",
+      name: "Golden Medusa VIP",
+      image: medusaCartoon,
+      tier: "gold",
+      benefits: "15% cashback, free spins, exclusive games",
+      description: "Transform your luck with the Golden Medusa's gaze"
+    },
+    {
+      id: "medusa-cyborg",
+      name: "Cyborg Medusa Elite",
+      image: medusaCyborg,
+      tier: "platinum",
+      benefits: "20% cashback, exclusive games, priority support",
+      description: "Advanced AI-powered fortune enhancement"
+    },
+    {
+      id: "medusa-neon",
+      name: "Neon Medusa Premium",
+      image: medusaNeon,
+      tier: "diamond",
+      benefits: "25% cashback, VIP host, exclusive events",
+      description: "Ultimate power with cybernetic precision"
+    },
+    {
+      id: "medusa-psychedelic",
+      name: "Cosmic Medusa Legend",
+      image: medusaPsychedelic,
+      tier: "diamond",
+      benefits: "25% cashback, VIP host, exclusive events, bonus multipliers",
+      description: "Transcendent luck from another dimension"
+    }
+  ];
+
+  const medusaRelicCollection = [
+    {
+      id: "relic-medusa-fortune",
+      name: "Medusa's Fortune Eye",
+      image: medusaCartoon,
+      relicClass: "fortune",
+      tier: "epic",
+      effect: "Winning odds boost",
+      power: "+15%",
+      description: "The gaze that turns bad luck to gold"
+    },
+    {
+      id: "relic-medusa-cyborg",
+      name: "Cyborg Medusa Core",
+      image: medusaCyborg,
+      relicClass: "guardian",
+      tier: "legendary",
+      effect: "House edge reduction",
+      power: "-10%",
+      description: "Mechanical precision shields against losses"
+    },
+    {
+      id: "relic-medusa-neon",
+      name: "Neon Serpent Charm",
+      image: medusaNeon,
+      relicClass: "prosperity",
+      tier: "legendary",
+      effect: "Cashback amplifier",
+      power: "2.5x",
+      description: "Radiant energy multiplies your returns"
+    },
+    {
+      id: "relic-medusa-cosmic",
+      name: "Cosmic Medusa Artifact",
+      image: medusaPsychedelic,
+      relicClass: "fortune",
+      tier: "legendary",
+      effect: "Jackpot probability",
+      power: "+25%",
+      description: "Universal forces align in your favor"
+    }
   ];
 
   const toggleTokenFeature = (featureId: string) => {
@@ -572,6 +654,65 @@ contract ${nftConfig.symbol || 'CasinoNFT'} is ERC721, ERC721URIStorage, Ownable
 
         {/* CASINO NFT TAB */}
         <TabsContent value="nft">
+          {/* Medusa Collection Spotlight */}
+          <Card className="mb-6 border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-pink-500/5">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-400" />
+                    Medusa Collection Spotlight
+                  </CardTitle>
+                  <CardDescription>Exclusive mythical NFTs with legendary benefits</CardDescription>
+                </div>
+                <Badge variant="outline" className="bg-purple-500/10 text-purple-300 border-purple-500/50">
+                  Featured
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {medusaNFTCollection.map((nft) => {
+                  const tierData = nftTiers.find(t => t.id === nft.tier);
+                  return (
+                    <Card 
+                      key={nft.id} 
+                      className="overflow-hidden border-2 hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/20"
+                      data-testid={`card-medusa-nft-${nft.id}`}
+                    >
+                      <div className="aspect-square relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800">
+                        <img 
+                          src={nft.image} 
+                          alt={nft.name}
+                          className="w-full h-full object-cover"
+                          data-testid={`img-medusa-nft-${nft.id}`}
+                        />
+                      </div>
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-sm" data-testid={`text-medusa-nft-name-${nft.id}`}>
+                            {nft.name}
+                          </h4>
+                          <Badge className={`${tierData?.color} text-white text-xs`}>
+                            {tierData?.name}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground" data-testid={`text-medusa-nft-desc-${nft.id}`}>
+                          {nft.description}
+                        </p>
+                        <div className="pt-2 border-t border-border">
+                          <p className="text-xs font-semibold text-purple-400" data-testid={`text-medusa-nft-benefits-${nft.id}`}>
+                            {nft.benefits}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid md:grid-cols-2 gap-6">
             {/* Configuration */}
             <div className="space-y-6">
