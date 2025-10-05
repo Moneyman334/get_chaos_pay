@@ -36,7 +36,8 @@ import {
   Package,
   Lock,
   Target,
-  Scroll
+  Scroll,
+  User
 } from "lucide-react";
 
 interface NavigationProps {
