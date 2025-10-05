@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useWeb3 } from "@/hooks/use-web3";
+import { useQuery } from "@tanstack/react-query";
 import { getNetworkGroup } from "@/lib/web3";
 import { 
   Wallet, 
@@ -75,6 +76,12 @@ const navigationItems = [
   { path: "/nfts", label: "NFT Gallery", icon: Palette }
 ];
 
+interface AuthStatus {
+  authenticated: boolean;
+  isOwner: boolean;
+  user?: any;
+}
+
 export default function Navigation({ onConnect, onDisconnect }: NavigationProps) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -90,6 +97,12 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
     getCurrentNetworkInfo,
     isCurrentNetworkSupported
   } = useWeb3();
+
+  // Check if user is owner
+  const { data: authStatus } = useQuery<AuthStatus>({
+    queryKey: ["/api/auth/me"],
+    refetchInterval: 30000,
+  });
 
   const handleNetworkChange = (chainId: string) => {
     switchNetwork(chainId);
@@ -134,6 +147,35 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
 
   const NavLinks = ({ mobile = false }) => (
     <div className={`${mobile ? 'flex flex-col space-y-4' : 'flex items-center space-x-8'}`}>
+      {/* Owner Dashboard - Only visible to owner */}
+      {authStatus?.isOwner && (
+        <Link 
+          href="/empire-owner"
+          onClick={() => mobile && setIsMobileMenuOpen(false)}
+          data-testid="nav-link-empire-owner"
+        >
+          <div className={`
+            relative flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-300
+            ${isActivePath('/empire-owner')
+              ? 'bg-gradient-to-r from-yellow-600 via-amber-500 to-yellow-600 text-white font-bold shadow-xl shadow-yellow-500/50 scale-105' 
+              : 'bg-gradient-to-r from-yellow-600/20 via-amber-500/20 to-yellow-600/20 text-yellow-400 hover:text-yellow-300 font-semibold border-2 border-yellow-500/40 hover:border-yellow-500/60 hover:shadow-xl hover:shadow-yellow-500/30 hover:scale-105'
+            }
+            ${mobile ? 'text-lg' : 'text-sm'}
+            animate-pulse-slow
+          `}>
+            <Crown className={`${mobile ? 'h-6 w-6' : 'h-5 w-5'} ${isActivePath('/empire-owner') ? 'drop-shadow-[0_0_10px_rgba(234,179,8,0.8)] animate-spin-slow' : 'drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]'}`} />
+            <span className="drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]">👑 Empire Owner</span>
+            {!isActivePath('/empire-owner') && (
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
+              </span>
+            )}
+          </div>
+        </Link>
+      )}
+      
+      {/* Regular navigation items */}
       {navigationItems.map(({ path, label, icon: Icon, featured }) => (
         <Link 
           key={path}
