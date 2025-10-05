@@ -721,7 +721,7 @@ export function useWeb3() {
         throw new Error('Wallet not connected');
       }
 
-      return transferToken(tokenAddress, state.account, toAddress, amount, Number(decimals));
+      return transferToken(tokenAddress, toAddress, amount, decimals, state.account);
     },
     onSuccess: (txHash, variables) => {
       toast({
@@ -765,7 +765,7 @@ export function useWeb3() {
         throw new Error('Wallet not connected');
       }
 
-      return approveToken(tokenAddress, state.account, spenderAddress, amount, Number(decimals));
+      return approveToken(tokenAddress, spenderAddress, amount, decimals, state.account);
     },
     onSuccess: (txHash) => {
       toast({
