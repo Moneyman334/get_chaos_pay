@@ -70,6 +70,7 @@ const navigationItems = [
   { path: "/token-creator", label: "Create Token", icon: Sparkles },
   { path: "/nft-creator", label: "Create NFT", icon: Image },
   { path: "/casino-token-ecosystem", label: "Casino Ecosystem", icon: Crown, featured: true },
+  { path: "/personal-collection", label: "Personal Collection", icon: Trophy, featured: true },
   { path: "/auto-deploy", label: "Auto-Deploy", icon: Zap, featured: true },
   { path: "/nfts", label: "NFT Gallery", icon: Palette }
 ];
