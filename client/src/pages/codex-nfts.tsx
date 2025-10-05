@@ -16,15 +16,38 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 
+interface NftCollection {
+  id: string;
+  name: string;
+  symbol: string;
+  description: string;
+  type: string;
+  totalSupply: string;
+  maxSupply: string;
+  isDynamic: boolean;
+  isTransferable: boolean;
+}
+
+interface UserNft {
+  id: string;
+  name: string;
+  image?: string;
+  rarity: string;
+  level?: number;
+  experience?: number;
+  powerScore?: number;
+  attributes?: Array<{ trait_type: string; value: string }>;
+}
+
 export default function CodexNftsPage() {
   const { account, isConnected } = useWeb3();
 
-  const { data: collections, isLoading: collectionsLoading } = useQuery({
+  const { data: collections, isLoading: collectionsLoading } = useQuery<NftCollection[]>({
     queryKey: ["/api/codex/nft-collections"],
     enabled: true,
   });
 
-  const { data: userNfts, isLoading: nftsLoading } = useQuery({
+  const { data: userNfts, isLoading: nftsLoading } = useQuery<UserNft[]>({
     queryKey: [`/api/codex/nfts/${account}`],
     enabled: isConnected && !!account,
   });
