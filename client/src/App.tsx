@@ -18,6 +18,7 @@ import CheckoutPage from "@/pages/checkout";
 import OrdersPage from "@/pages/orders";
 import TokenCreatorPage from "@/pages/token-creator";
 import NFTCreatorPage from "@/pages/nft-creator";
+import CasinoTokenEcosystemPage from "@/pages/casino-token-ecosystem";
 import SentinelBotPage from "@/pages/sentinel-bot";
 import BotDashboardPage from "@/pages/bot-dashboard";
 import BotConfigPage from "@/pages/bot-config";
@@ -111,6 +112,7 @@ function Router() {
       <Route path="/orders" component={OrdersPage} />
       <Route path="/token-creator" component={TokenCreatorPage} />
       <Route path="/nft-creator" component={NFTCreatorPage} />
+      <Route path="/casino-token-ecosystem" component={CasinoTokenEcosystemPage} />
       <Route path="/auto-deploy" component={AutoDeployPage} />
       <Route path="/trade" component={TradePage} />
       <Route path="/sentinel-bot" component={SentinelBotPage} />
