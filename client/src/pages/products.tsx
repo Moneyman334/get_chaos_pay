@@ -93,8 +93,9 @@ export default function Products() {
   };
 
   const addToCartMutation = useMutation({
-    mutationFn: async (productId: string) => {
+    mutationFn: async ({ productId, customerWallet }: { productId: string; customerWallet: string }) => {
       const response = await apiRequest('POST', '/api/cart/add', {
+        customerWallet,
         productId,
         quantity: 1,
       });
@@ -117,7 +118,16 @@ export default function Products() {
   });
 
   const handleAddToCart = (productId: string) => {
-    addToCartMutation.mutate(productId);
+    if (!account) {
+      toast({
+        title: "Connect Wallet",
+        description: "Please connect your wallet to add items to cart",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addToCartMutation.mutate({ productId, customerWallet: account });
   };
 
   return (
