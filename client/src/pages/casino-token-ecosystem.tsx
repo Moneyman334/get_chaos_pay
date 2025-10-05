@@ -900,6 +900,73 @@ contract ${nftConfig.symbol || 'CasinoNFT'} is ERC721, ERC721URIStorage, Ownable
 
         {/* CASINO RELIC TAB */}
         <TabsContent value="relic">
+          {/* Medusa Relic Showcase */}
+          <Card className="mb-6 border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-orange-500/5">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Gem className="h-5 w-5 text-amber-400" />
+                    Medusa Relic Collection
+                  </CardTitle>
+                  <CardDescription>Ancient artifacts of power and prosperity</CardDescription>
+                </div>
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-300 border-amber-500/50">
+                  Legendary
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {medusaRelicCollection.map((relic) => {
+                  const tierData = relicTiers.find(t => t.id === relic.tier);
+                  const classData = relicClasses.find(c => c.id === relic.relicClass);
+                  const ClassIcon = classData?.icon || Gem;
+                  return (
+                    <Card 
+                      key={relic.id} 
+                      className="overflow-hidden border-2 hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/20"
+                      data-testid={`card-medusa-relic-${relic.id}`}
+                    >
+                      <div className="aspect-square relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800">
+                        <img 
+                          src={relic.image} 
+                          alt={relic.name}
+                          className="w-full h-full object-cover"
+                          data-testid={`img-medusa-relic-${relic.id}`}
+                        />
+                        <div className="absolute top-2 right-2">
+                          <Badge className={`${tierData?.color} bg-black/50 backdrop-blur-sm`}>
+                            {tierData?.name}
+                          </Badge>
+                        </div>
+                      </div>
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-sm" data-testid={`text-medusa-relic-name-${relic.id}`}>
+                            {relic.name}
+                          </h4>
+                          <ClassIcon className="h-4 w-4 text-amber-400" />
+                        </div>
+                        <p className="text-xs text-muted-foreground" data-testid={`text-medusa-relic-desc-${relic.id}`}>
+                          {relic.description}
+                        </p>
+                        <div className="flex items-center justify-between pt-2 border-t border-border">
+                          <span className="text-xs font-semibold text-amber-400" data-testid={`text-medusa-relic-effect-${relic.id}`}>
+                            {relic.effect}
+                          </span>
+                          <Badge variant="outline" className="text-xs" data-testid={`badge-medusa-relic-power-${relic.id}`}>
+                            {relic.power}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid md:grid-cols-2 gap-6">
             {/* Configuration */}
             <div className="space-y-6">
