@@ -5,7 +5,14 @@
 # Recent Changes (Oct 5, 2025)
 
 ## Critical Bug Fixes
-1. **Products Page Cart Functionality**: Fixed missing "Add to Cart" functionality on Products page
+1. **Wallet Connection Modal**: Fixed non-functional WalletConnect option
+   - **Issue**: WalletConnect appeared in connection modal but wasn't implemented, causing user confusion
+   - **Root Cause**: WalletConnect connector was set to null with no actual implementation
+   - **Fix**: Removed WalletConnect option from enhanced connection modal UI
+   - **Current Support**: Modal now shows only MetaMask and Coinbase Wallet (both fully functional)
+   - **Testing**: Verified modal functionality, tab navigation, mobile QR code feature, and wallet connections work correctly
+
+2. **Products Page Cart Functionality**: Fixed missing "Add to Cart" functionality on Products page
    - **Issue**: Cart buttons had no onClick handlers, preventing users from adding items to cart
    - **Root Cause**: Missing mutation hook and handleAddToCart function
    - **Security Fix**: Added wallet connection validation - users must connect wallet before adding to cart
