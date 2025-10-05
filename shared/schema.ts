@@ -2039,6 +2039,47 @@ export type InsertCodexStakingPool = z.infer<typeof insertCodexStakingPoolSchema
 export type CodexUserStake = typeof codexUserStakes.$inferSelect;
 export type InsertCodexUserStake = z.infer<typeof insertCodexUserStakeSchema>;
 
+// ===== MARKETPLACE SYSTEM =====
+// Peer-to-peer trading of NFTs, Tokens, and Relics
+
+export const marketplaceListings = pgTable("marketplace_listings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sellerId: varchar("seller_id"),
+  sellerWallet: text("seller_wallet").notNull(),
+  itemType: text("item_type").notNull(), // nft, token, relic, product
+  itemId: text("item_id").notNull(), // ID of the NFT/token/relic/product being sold
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  price: text("price").notNull(),
+  currency: text("currency").notNull().default("ETH"),
+  imageUrl: text("image_url"),
+  status: text("status").notNull().default("active"), // active, sold, cancelled
+  buyerId: varchar("buyer_id"),
+  buyerWallet: text("buyer_wallet"),
+  soldAt: timestamp("sold_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  metadata: jsonb("metadata"), // Additional item-specific data
+}, (table) => ({
+  sellerIdx: index("marketplace_listings_seller_idx").on(table.sellerWallet),
+  sellerLowerIdx: index("marketplace_listings_seller_lower_idx").on(sql`lower(${table.sellerWallet})`),
+  buyerIdx: index("marketplace_listings_buyer_idx").on(table.buyerWallet),
+  buyerLowerIdx: index("marketplace_listings_buyer_lower_idx").on(sql`lower(${table.buyerWallet})`),
+  itemTypeIdx: index("marketplace_listings_item_type_idx").on(table.itemType),
+  statusIdx: index("marketplace_listings_status_idx").on(table.status),
+  createdIdx: index("marketplace_listings_created_idx").on(table.createdAt),
+}));
+
+// Insert Schema
+export const insertMarketplaceListingSchema = createInsertSchema(marketplaceListings).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type MarketplaceListing = typeof marketplaceListings.$inferSelect;
+export type InsertMarketplaceListing = z.infer<typeof insertMarketplaceListingSchema>;
+
 // ===== CODEX RELICS SYSTEM =====
 // Tiered, soulbound artifacts earned through milestones
 
