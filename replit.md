@@ -23,6 +23,8 @@ The frontend uses React 18, TypeScript, Vite, Wouter for routing, and TanStack Q
 ### Backend
 The backend is an Express.js and TypeScript REST API with modular routes. It uses PostgreSQL and Drizzle ORM. The API architecture includes over 70 RESTful endpoints with rate limiting, authentication, Zod validation, and a storage layer. Security features include PostgreSQL-backed sessions, Bcrypt password hashing, CORS, input sanitization, and SQL injection prevention. Real-time services include an Auto-Compound Engine, Social Media Scheduler, Trading Bot Engine, and Price Service, designed for stability with graceful shutdown handling.
 
+**Owner/Admin Protection System**: A secure authentication system protects owner-only routes and dashboards. The `requireOwner` middleware verifies session-based authentication (no header spoofing) and checks the user's `isOwner` database flag. Protected routes include Command Center, Marketing Dashboards, Social Automation, Admin Discounts, Admin Flash Sales, and Owner Analytics. The frontend `ProtectedRoute` component enforces access control by checking `/api/auth/me` and redirecting unauthorized users to the home page.
+
 ## Feature Specifications
 
 ### Web3 & Blockchain
