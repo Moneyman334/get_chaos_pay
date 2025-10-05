@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useWeb3 } from "@/hooks/use-web3";
 import { useQuery } from "@tanstack/react-query";
 import { getNetworkGroup } from "@/lib/web3";
+import AuthModal from "@/components/auth-modal";
 import { 
   Wallet, 
   Home, 
@@ -85,6 +86,7 @@ interface AuthStatus {
 export default function Navigation({ onConnect, onDisconnect }: NavigationProps) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
   const { 
     isConnected,
@@ -336,8 +338,22 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
               )}
             </div>
 
-            {/* Wallet Connection */}
+            {/* Account & Wallet Connection */}
             <div className="flex items-center space-x-3">
+              {/* Login Button */}
+              {!authStatus?.authenticated && (
+                <Button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  size="sm"
+                  variant="outline"
+                  className="border-purple-500/40 hover:border-purple-500/60 hover:bg-purple-500/10"
+                  data-testid="nav-button-login"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Login
+                </Button>
+              )}
+              
               {isConnected ? (
                 <div className="hidden md:flex items-center space-x-3">
                   <div className="text-right">
@@ -555,6 +571,9 @@ export default function Navigation({ onConnect, onDisconnect }: NavigationProps)
           </div>
         </div>
       </div>
+      
+      {/* Auth Modal */}
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </header>
   );
 }
