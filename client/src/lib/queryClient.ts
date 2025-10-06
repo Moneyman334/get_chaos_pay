@@ -13,10 +13,12 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const shouldIncludeBody = method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD';
+  
   const res = await fetchWithRetry(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: (shouldIncludeBody && data) ? { "Content-Type": "application/json" } : {},
+    body: (shouldIncludeBody && data) ? JSON.stringify(data) : undefined,
     credentials: "include",
   }, {
     maxRetries: 2,
