@@ -191,7 +191,13 @@ export function formatAddress(address: string): string {
 
 export function formatBalance(balance: string, decimals: number = 4): string {
   const num = parseFloat(balance);
-  return num.toFixed(decimals);
+  if (isNaN(num)) return '0.' + '0'.repeat(decimals);
+  
+  const fixed = num.toFixed(decimals);
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  
+  return decPart ? `${formattedInt}.${decPart}` : formattedInt;
 }
 
 export function weiToEth(wei: string): string {
@@ -272,8 +278,14 @@ export function getL2Networks() {
 
 export function formatTokenAmount(amount: string, symbol: string, decimals: number = 4): string {
   const num = parseFloat(amount);
-  if (isNaN(num)) return '0.0000';
-  return `${num.toFixed(decimals)} ${symbol}`;
+  if (isNaN(num)) return '0.' + '0'.repeat(decimals) + ` ${symbol}`;
+  
+  const fixed = num.toFixed(decimals);
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const formatted = decPart ? `${formattedInt}.${decPart}` : formattedInt;
+  
+  return `${formatted} ${symbol}`;
 }
 
 export function getBlockExplorerUrl(chainId: string, txHash?: string, address?: string): string {

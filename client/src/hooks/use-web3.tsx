@@ -13,6 +13,7 @@ import {
   approveToken,
   getTokenAllowance 
 } from "@/lib/web3";
+import { formatBalanceFromWei } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { 
   tokenDetectionService, 
@@ -89,16 +90,7 @@ export function useWeb3() {
         
         const balanceInToken = (() => {
           try {
-            const balanceBigInt = BigInt(balance);
-            const decimals = BigInt(network.decimals || 18);
-            let divisor = BigInt(1);
-            for (let i = 0; i < Number(decimals); i++) {
-              divisor = divisor * BigInt(10);
-            }
-            const intPart = balanceBigInt / divisor;
-            const remainder = balanceBigInt % divisor;
-            const fractional = remainder.toString().padStart(Number(decimals), '0').slice(0, 4);
-            return `${intPart.toString()}.${fractional.replace(/0+$/, '') || '0'}`;
+            return formatBalanceFromWei(balance, network.decimals || 18, 4);
           } catch (error) {
             console.error("Balance conversion error:", error);
             return '0.0000';
