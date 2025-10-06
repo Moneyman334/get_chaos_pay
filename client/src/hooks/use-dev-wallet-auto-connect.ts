@@ -107,8 +107,8 @@ export function useDevWalletAutoConnect() {
           // Enable demo mode to use this session
           if (!isDemoMode) {
             enableDemoMode();
-            // Only reload if we just enabled demo mode and wallet was not connected
-            setNeedsReload(true);
+            // Skip reload - let the app refresh naturally
+            // setNeedsReload(true);
           }
         } else {
           console.log('ℹ️ No user wallet found in database');
@@ -122,12 +122,13 @@ export function useDevWalletAutoConnect() {
   }, [isDemoMode, enableDemoMode, wallets, hasAttemptedConnect, isInitialized, userWallets, preferences]);
 
   // Separate effect for reload to avoid dependency loop
-  useEffect(() => {
-    if (needsReload && isDemoMode) {
-      console.log('🔄 Reloading to apply wallet connection...');
-      window.location.reload();
-    }
-  }, [needsReload, isDemoMode]);
+  // Disabled to prevent unwanted page reloads
+  // useEffect(() => {
+  //   if (needsReload && isDemoMode) {
+  //     console.log('🔄 Reloading to apply wallet connection...');
+  //     window.location.reload();
+  //   }
+  // }, [needsReload, isDemoMode]);
 
   return { isDemoMode, isConnected: wallets.size > 0 };
 }

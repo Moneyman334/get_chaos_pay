@@ -37,7 +37,7 @@ export function useDevAutoLogin() {
       }
       
       try {
-        const response = await apiRequest('GET', '/api/preferences/default', {});
+        const response = await fetch('/api/preferences/default');
         const data = await response.json();
         setDefaultPreference(data.autoLoginEnabled === 'true');
       } catch {
