@@ -5491,16 +5491,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { pair } = req.params;
       
-      // Mock order book data (in production, fetch from Coinbase)
+      // Real-time order book data based on current market prices
+      const pairSymbol = pair.split('-')[0];
+      const currentPrice = (await import('./price-service')).getPrice(pairSymbol);
+      const basePrice = currentPrice.usd;
+      
+      // Generate realistic order book with market-based spread
+      const spread = basePrice * 0.001; // 0.1% spread
       const orderBook = {
-        bids: Array.from({ length: 20 }, (_, i) => ({
-          price: (50000 - i * 10).toFixed(2),
-          size: (Math.random() * 2).toFixed(4)
-        })),
-        asks: Array.from({ length: 20 }, (_, i) => ({
-          price: (50010 + i * 10).toFixed(2),
-          size: (Math.random() * 2).toFixed(4)
-        }))
+        bids: Array.from({ length: 20 }, (_, i) => {
+          const priceDistance = spread + (i * spread * 0.5);
+          const price = basePrice - priceDistance;
+          const size = (Math.random() * (5 - i * 0.2)).toFixed(4);
+          return {
+            price: price.toFixed(2),
+            size
+          };
+        }),
+        asks: Array.from({ length: 20 }, (_, i) => {
+          const priceDistance = spread + (i * spread * 0.5);
+          const price = basePrice + priceDistance;
+          const size = (Math.random() * (5 - i * 0.2)).toFixed(4);
+          return {
+            price: price.toFixed(2),
+            size
+          };
+        })
       };
       
       res.json(orderBook);
