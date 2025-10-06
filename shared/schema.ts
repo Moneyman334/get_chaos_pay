@@ -1816,6 +1816,21 @@ export const transactionLimits = pgTable("transaction_limits", {
   walletLowerIdx: index("transaction_limits_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
 }));
 
+export const platformAddresses = pgTable("platform_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  address: text("address").notNull().unique(),
+  label: text("label").notNull(),
+  category: text("category").notNull(), // staking_pool, marketplace, vault, nft_collection
+  description: text("description"),
+  isActive: text("is_active").notNull().default("true"),
+  addedBy: varchar("added_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  addressLowerIdx: index("platform_addresses_address_lower_idx").on(sql`lower(${table.address})`),
+  categoryIdx: index("platform_addresses_category_idx").on(table.category),
+  activeIdx: index("platform_addresses_active_idx").on(table.isActive),
+}));
+
 // Insert schemas
 export const insertWalletSecurityPolicySchema = createInsertSchema(walletSecurityPolicies).omit({
   id: true,
@@ -1843,6 +1858,11 @@ export const insertTransactionLimitSchema = createInsertSchema(transactionLimits
   createdAt: true,
 });
 
+export const insertPlatformAddressSchema = createInsertSchema(platformAddresses).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertWalletSecurityPolicy = z.infer<typeof insertWalletSecurityPolicySchema>;
 export type WalletSecurityPolicy = typeof walletSecurityPolicies.$inferSelect;
@@ -1854,6 +1874,8 @@ export type InsertSecurityAlert = z.infer<typeof insertSecurityAlertSchema>;
 export type SecurityAlert = typeof securityAlerts.$inferSelect;
 export type InsertTransactionLimit = z.infer<typeof insertTransactionLimitSchema>;
 export type TransactionLimit = typeof transactionLimits.$inferSelect;
+export type InsertPlatformAddress = z.infer<typeof insertPlatformAddressSchema>;
+export type PlatformAddress = typeof platformAddresses.$inferSelect;
 
 // ===== CODEX PLATFORM TOKEN & NFT ECOSYSTEM =====
 
