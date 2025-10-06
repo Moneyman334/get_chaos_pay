@@ -623,7 +623,12 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = { 
+      ...insertUser, 
+      id,
+      isOwner: "false",
+      createdAt: new Date()
+    };
     this.users.set(id, user);
     return user;
   }
@@ -1104,6 +1109,9 @@ export class MemStorage implements IStorage {
 // Database connection setup
 const sql_client = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql_client);
+
+// Export db for use in routes and other modules
+export { db };
 
 export class PostgreSQLStorage implements IStorage {
   // Health check to verify database extensions
