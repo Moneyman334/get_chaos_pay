@@ -32,6 +32,7 @@ import {
   flashSales
 } from "@shared/schema";
 import { eq, and, sql, desc, lte, gte, or, isNull } from "drizzle-orm";
+import { SecurityFortress } from "./security-fortress";
 
 // Ethereum address validation schema
 const ethereumAddressSchema = z.string()
@@ -140,17 +141,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Rate limiting for auth endpoints
-  const authRateLimit = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 authentication requests per window
-    message: {
-      error: "Too many authentication attempts, please try again later.",
-      retryAfter: "15 minutes"
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
+  // Enhanced rate limiting with security fortress
+  const authRateLimit = SecurityFortress.createRateLimiter('STRICT', 'Too many authentication attempts');
+  const tradingRateLimit = SecurityFortress.createRateLimiter('TRADING', 'Trading rate limit exceeded');
+  const paymentRateLimit = SecurityFortress.createRateLimiter('PAYMENT', 'Payment rate limit exceeded');
+  const generalApiLimit = SecurityFortress.createRateLimiter('MODERATE');
+  const publicDataLimit = SecurityFortress.createRateLimiter('RELAXED');
 
   // ===== AUTHENTICATION ROUTES =====
 
@@ -520,8 +516,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Store a new transaction
-  app.post("/api/transactions", async (req, res) => {
+  // Store a new transaction with fraud detection
+  app.post("/api/transactions", generalApiLimit, async (req, res) => {
     try {
       const transactionSchema = z.object({
         hash: transactionHashSchema,
@@ -538,6 +534,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const validatedData = transactionSchema.parse(req.body);
+      
+      // Fraud detection analysis
+      const riskAnalysis = SecurityFortress.analyzeTransactionRisk({
+        fromAddress: validatedData.fromAddress,
+        toAddress: validatedData.toAddress,
+        amount: validatedData.amount,
+        gasPrice: validatedData.gasPrice
+      });
+      
+      // Log risk analysis for monitoring
+      if (riskAnalysis.score > 0) {
+        console.warn('Transaction Risk Analysis:', {
+          hash: validatedData.hash,
+          score: riskAnalysis.score,
+          flags: riskAnalysis.flags,
+          recommendation: riskAnalysis.recommendation
+        });
+      }
+      
+      // Reject high-risk transactions
+      if (riskAnalysis.recommendation === 'reject') {
+        return res.status(403).json({ 
+          error: "Transaction rejected due to security concerns",
+          riskScore: riskAnalysis.score,
+          flags: riskAnalysis.flags
+        });
+      }
+      
+      // Flag medium-risk transactions in metadata
+      if (riskAnalysis.recommendation === 'review') {
+        validatedData.metadata = {
+          ...validatedData.metadata,
+          riskAnalysis,
+          requiresReview: true
+        };
+      }
+      
       const transaction = await storage.createTransaction(validatedData);
       res.status(201).json(transaction);
     } catch (error) {
