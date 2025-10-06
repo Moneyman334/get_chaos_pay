@@ -96,6 +96,7 @@ import { WalletNexusProvider } from "@/lib/wallet-nexus";
 import BridgePage from "@/pages/bridge";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useDevAutoLogin } from "@/hooks/use-dev-auto-login";
+import { useDevWalletAutoConnect } from "@/hooks/use-dev-wallet-auto-connect";
 
 function Router() {
   return (
@@ -216,6 +217,9 @@ function AppContent() {
   
   // DEV MODE: Auto-login as owner
   useDevAutoLogin();
+  
+  // DEV MODE: Auto-connect wallet for easy development
+  useDevWalletAutoConnect();
   
   // Initialize wallet session management with activity tracking
   useWalletSession();

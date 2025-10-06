@@ -113,13 +113,13 @@ export const demoData = {
 
   demoWallets: [
     {
-      id: "metamask-0x742d35cc6634c0532925a3b844bc9e7595f0beb1",
+      id: "metamask-0x7a32cd212d5a3630d4c0be28042407108fde8dc8",
       type: "metamask" as const,
       name: "MetaMask",
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",
+      address: "0x7a32cd212d5a3630d4c0be28042407108fde8dc8",
       chainType: "evm" as const,
       chainId: "0x1",
-      balance: "3.4521",
+      balance: "40.46",
       nativeSymbol: "ETH",
       isConnected: true,
       isPrimary: true,
