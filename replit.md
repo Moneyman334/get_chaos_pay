@@ -41,6 +41,7 @@ The backend is an Express.js and TypeScript REST API with modular routes. It use
 - **Buy & Trade Crypto Platform**: A comprehensive trading interface with a real-time order book, multiple order types, various trading pairs, live price ticker, order history, and trading statistics dashboard.
 - **Auto Trading Bot**: An advanced AI-powered bot with real-time activity feed, demo/live modes, five trading strategies, an emergency stop button, performance dashboard, and risk management configurations.
 - **House Vaults System**: Player-owned liquidity system for ETH staking with varying APY and lock periods.
+- **Yield Farming System**: Complete LP token staking platform with 4 active farm pools (ETH-USDC 85.5% APY, BTC-ETH 120% APY, DAI-USDT 45.2% APY, MATIC-USDC 95.8% APY). Features include deposit/withdraw functionality, real-time reward calculation, harvest rewards, auto-compound toggle, position management, and TVL tracking. Backend includes 6 API endpoints (`/api/yield-farming/pools`, `/api/yield-farming/positions/:user`, `/api/yield-farming/deposit`, `/api/yield-farming/withdraw`, `/api/yield-farming/harvest`, `/api/yield-farming/auto-compound`), 2 database tables (yield_farm_pools, yield_farm_positions), and complete storage layer integration.
 
 ### E-commerce & Payments
 - **Complete Checkout System**: A full e-commerce checkout flow with a persistent shopping cart, three-stage checkout process, MetaMask direct payments, NOWPayments multi-crypto support, payment status monitoring, and order management.
