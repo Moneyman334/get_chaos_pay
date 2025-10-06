@@ -2233,26 +2233,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const nowPaymentsApiKey = process.env.NOWPAYMENTS_API_KEY;
       
       if (!nowPaymentsApiKey) {
-        console.warn('[NOWPayments] API key not configured, creating fallback payment record');
-        const payment = await storage.createPayment({
-          orderId: data.orderId,
-          paymentMethod: 'nowpayments',
-          provider: 'nowpayments',
-          amount: data.amount,
-          currency: data.currency,
-          status: 'waiting',
-          providerResponse: {
-            pay_currency: data.crypto,
-            created_at: new Date().toISOString(),
-            fallback_mode: true
-          } as any
+        console.error('[NOWPayments] API key not configured - NOWPayments integration requires NOWPAYMENTS_API_KEY environment variable');
+        return res.status(503).json({ 
+          error: 'NOWPayments service not configured',
+          message: 'NOWPayments integration requires API key configuration'
         });
-
-        await storage.updateOrder(data.orderId, {
-          status: 'awaiting_payment'
-        });
-
-        return res.json(payment);
       }
 
       const nowPaymentsInvoice = await fetch('https://api.nowpayments.io/v1/invoice', {
@@ -5532,98 +5517,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const openOrders: Map<string, any> = new Map();
   const orderHistory: any[] = [];
   
-  // Initialize with some demo orders
-  openOrders.set(`order_${Date.now()}_1`, {
-    id: `order_${Date.now()}_1`,
-    pair: 'BTC-USD',
-    side: 'buy',
-    type: 'limit',
-    amount: 0.1,
-    price: '49500.00',
-    status: 'open',
-    createdAt: new Date(Date.now() - 3600000).toISOString()
-  });
-  
-  openOrders.set(`order_${Date.now()}_2`, {
-    id: `order_${Date.now()}_2`,
-    pair: 'ETH-USD',
-    side: 'sell',
-    type: 'limit',
-    amount: 2,
-    price: '3100.00',
-    status: 'open',
-    createdAt: new Date(Date.now() - 7200000).toISOString()
-  });
-  
-  // Initialize order history
-  orderHistory.push({
-    id: `order_history_1`,
-    pair: 'BTC-USD',
-    side: 'buy',
-    type: 'market',
-    amount: 0.05,
-    executedPrice: '49800.00',
-    profit: 150.50,
-    status: 'filled',
-    executedAt: new Date(Date.now() - 86400000).toISOString()
-  });
-  
-  orderHistory.push({
-    id: `order_history_2`,
-    pair: 'ETH-USD',
-    side: 'sell',
-    type: 'market',
-    amount: 1,
-    executedPrice: '3050.00',
-    profit: -25.00,
-    status: 'filled',
-    executedAt: new Date(Date.now() - 172800000).toISOString()
-  });
-  
-  orderHistory.push({
-    id: `order_history_3`,
-    pair: 'SOL-USD',
-    side: 'buy',
-    type: 'limit',
-    amount: 10,
-    executedPrice: '98.50',
-    profit: 45.00,
-    status: 'filled',
-    executedAt: new Date(Date.now() - 259200000).toISOString()
-  });
   
   // Get order book for a trading pair
   app.get("/api/trading/orderbook/:pair", async (req, res) => {
     try {
       const { pair } = req.params;
       
-      // Real-time order book data based on current market prices
+      // Real order book from platform's open orders
       const pairSymbol = pair.split('-')[0];
       const currentPrice = (await import('./price-service')).getPrice(pairSymbol);
       const basePrice = currentPrice.usd;
       
-      // Generate realistic order book with market-based spread
-      const spread = basePrice * 0.001; // 0.1% spread
-      const orderBook = {
-        bids: Array.from({ length: 20 }, (_, i) => {
-          const priceDistance = spread + (i * spread * 0.5);
-          const price = basePrice - priceDistance;
-          const size = (Math.random() * (5 - i * 0.2)).toFixed(4);
-          return {
-            price: price.toFixed(2),
-            size
-          };
-        }),
-        asks: Array.from({ length: 20 }, (_, i) => {
-          const priceDistance = spread + (i * spread * 0.5);
-          const price = basePrice + priceDistance;
-          const size = (Math.random() * (5 - i * 0.2)).toFixed(4);
-          return {
-            price: price.toFixed(2),
-            size
-          };
-        })
-      };
+      // Aggregate real open orders from the platform
+      const allOrders = Array.from(openOrders.values()).filter(order => order.pair === pair);
+      
+      const bids = allOrders
+        .filter(order => order.side === 'buy' && order.status === 'open')
+        .map(order => ({
+          price: order.price,
+          size: order.amount.toString()
+        }))
+        .sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
+        .slice(0, 20);
+      
+      const asks = allOrders
+        .filter(order => order.side === 'sell' && order.status === 'open')
+        .map(order => ({
+          price: order.price,
+          size: order.amount.toString()
+        }))
+        .sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
+        .slice(0, 20);
+      
+      const orderBook = { bids, asks };
       
       res.json(orderBook);
     } catch (error) {

@@ -365,12 +365,14 @@ export const crypto_utils = {
 };
 
 // Production-grade API key validation middleware
-// Store API keys securely - in production, use database or secrets manager
-const VALID_API_KEYS = new Set([
-  process.env.PLATFORM_API_KEY || crypto_utils.hashData('codex_platform_master_key_2024'),
-  process.env.ADMIN_API_KEY || crypto_utils.hashData('codex_admin_fortress_key_2024'),
-  process.env.TRADING_API_KEY || crypto_utils.hashData('codex_trading_sentinel_key_2024'),
-]);
+// Enforce environment variable configuration - no hardcoded fallbacks
+const VALID_API_KEYS = new Set(
+  [
+    process.env.PLATFORM_API_KEY,
+    process.env.ADMIN_API_KEY,
+    process.env.TRADING_API_KEY
+  ].filter(key => key && key.trim().length > 0)
+);
 
 export function validateApiKey(req: Request, res: Response, next: NextFunction) {
   const apiKey = req.headers['x-api-key'] as string;
