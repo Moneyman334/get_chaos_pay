@@ -2243,3 +2243,121 @@ export type CodexRelicProgress = typeof codexRelicProgress.$inferSelect;
 export type InsertCodexRelicProgress = z.infer<typeof insertCodexRelicProgressSchema>;
 export type CodexRelicEffect = typeof codexRelicEffects.$inferSelect;
 export type InsertCodexRelicEffect = z.infer<typeof insertCodexRelicEffectSchema>;
+
+// ============================================================================
+// VIP MEMBERSHIP TIERS - Premium Features & Reduced Fees
+// ============================================================================
+
+export const vipTiers = pgTable("vip_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // Free, Silver, Gold, Platinum
+  level: text("level").notNull().default("0"), // 0=Free, 1=Silver, 2=Gold, 3=Platinum
+  price: text("price").notNull().default("0"), // Monthly price in USD
+  currency: text("currency").notNull().default("USD"),
+  
+  // Fee discounts (percentage reduction)
+  marketplaceFeeDiscount: text("marketplace_fee_discount").notNull().default("0"), // 0-100%
+  tradingFeeDiscount: text("trading_fee_discount").notNull().default("0"),
+  withdrawalFeeDiscount: text("withdrawal_fee_discount").notNull().default("0"),
+  
+  // Perks
+  prioritySupport: text("priority_support").notNull().default("false"),
+  earlyPoolAccess: text("early_pool_access").notNull().default("false"), // Access pools before public
+  exclusivePools: text("exclusive_pools").array().default(sql`'{}'::text[]`), // Pool IDs only for this tier
+  maxDailyTrades: text("max_daily_trades").notNull().default("unlimited"), // For trading bot
+  
+  // Rewards
+  bonusApy: text("bonus_apy").notNull().default("0"), // Additional APY on staking
+  referralBonusMultiplier: text("referral_bonus_multiplier").notNull().default("1"), // 1x, 1.5x, 2x
+  
+  isActive: text("is_active").notNull().default("true"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  levelIdx: index("vip_tiers_level_idx").on(table.level),
+  activeIdx: index("vip_tiers_active_idx").on(table.isActive),
+}));
+
+export const vipMemberships = pgTable("vip_memberships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  walletAddress: text("wallet_address").notNull(),
+  tierId: varchar("tier_id").notNull().references(() => vipTiers.id),
+  status: text("status").notNull().default("active"), // active, cancelled, expired
+  
+  startDate: timestamp("start_date").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(), // Monthly renewal
+  
+  autoRenew: text("auto_renew").notNull().default("true"),
+  paymentMethod: text("payment_method").notNull(), // crypto, card
+  lastPaymentDate: timestamp("last_payment_date"),
+  lastPaymentAmount: text("last_payment_amount"),
+  
+  lifetimeValue: text("lifetime_value").notNull().default("0"), // Total paid
+  monthsActive: text("months_active").notNull().default("0"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  walletLowerIdx: index("vip_memberships_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  tierIdx: index("vip_memberships_tier_idx").on(table.tierId),
+  statusIdx: index("vip_memberships_status_idx").on(table.status),
+  expiresIdx: index("vip_memberships_expires_idx").on(table.expiresAt),
+}));
+
+// ============================================================================
+// PLATFORM FEE COLLECTION - Track all revenue sources
+// ============================================================================
+
+export const platformFees = pgTable("platform_fees", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  feeType: text("fee_type").notNull(), // marketplace, trading, withdrawal, subscription
+  sourceId: varchar("source_id"), // Order ID, Trade ID, etc
+  sourceTable: text("source_table"), // orders, bot_trades, etc
+  
+  walletAddress: text("wallet_address"), // Who paid the fee
+  
+  amount: text("amount").notNull(), // Fee amount collected
+  currency: text("currency").notNull().default("USD"),
+  cryptoAmount: text("crypto_amount"), // If paid in crypto
+  cryptoSymbol: text("crypto_symbol"),
+  
+  // Fee calculation details
+  baseAmount: text("base_amount").notNull(), // Original transaction amount
+  feePercentage: text("fee_percentage").notNull(), // Fee % applied
+  
+  // VIP discount applied
+  vipTierId: varchar("vip_tier_id").references(() => vipTiers.id),
+  discountApplied: text("discount_applied").default("0"), // Discount percentage
+  
+  collectedAt: timestamp("collected_at").notNull().defaultNow(),
+  metadata: jsonb("metadata"),
+}, (table) => ({
+  typeIdx: index("platform_fees_type_idx").on(table.feeType),
+  walletLowerIdx: index("platform_fees_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  collectedAtIdx: index("platform_fees_collected_at_idx").on(table.collectedAt),
+  sourceIdx: index("platform_fees_source_idx").on(table.sourceTable, table.sourceId),
+}));
+
+// Insert schemas
+export const insertVipTierSchema = createInsertSchema(vipTiers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertVipMembershipSchema = createInsertSchema(vipMemberships).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPlatformFeeSchema = createInsertSchema(platformFees).omit({
+  id: true,
+  collectedAt: true,
+});
+
+// Types
+export type VipTier = typeof vipTiers.$inferSelect;
+export type InsertVipTier = z.infer<typeof insertVipTierSchema>;
+export type VipMembership = typeof vipMemberships.$inferSelect;
+export type InsertVipMembership = z.infer<typeof insertVipMembershipSchema>;
+export type PlatformFee = typeof platformFees.$inferSelect;
+export type InsertPlatformFee = z.infer<typeof insertPlatformFeeSchema>;

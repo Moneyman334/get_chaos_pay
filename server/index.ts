@@ -118,6 +118,14 @@ app.use((req, res, next) => {
   } catch (error) {
     console.error("Failed to start social media scheduler:", error);
   }
+  
+  // Initialize price service with live CoinGecko data
+  const { initializePriceService } = await import("./price-service");
+  try {
+    await initializePriceService();
+  } catch (error) {
+    console.error("Failed to initialize price service:", error);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

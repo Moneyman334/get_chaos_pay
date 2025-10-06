@@ -18,6 +18,7 @@ import bcrypt from "bcrypt";
 import { getChainConfig, verifyTransaction, getAllSupportedChains } from "./blockchain-config";
 import { socialScheduler } from "./social-scheduler";
 import { db as dbClient } from "./storage";
+import { getCryptoPrice, getAllPrices, convertCryptoToUsd, convertUsdToCrypto } from "./price-service";
 import { 
   users, 
   transactions, 
@@ -85,10 +86,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", (req, res) => {
     res.json({ 
       status: "healthy", 
-      services: ["transactions", "wallets", "tokens", "networks", "authentication"],
+      services: ["transactions", "wallets", "tokens", "networks", "authentication", "prices"],
       database: "connected",
       timestamp: new Date().toISOString()
     });
+  });
+
+  // Get real-time crypto prices
+  app.get("/api/prices", (req, res) => {
+    try {
+      const prices = getAllPrices();
+      res.json(prices);
+    } catch (error) {
+      console.error("Failed to fetch prices:", error);
+      res.status(500).json({ error: "Failed to fetch prices" });
+    }
+  });
+
+  // Get specific crypto price
+  app.get("/api/prices/:symbol", (req, res) => {
+    try {
+      const symbol = req.params.symbol.toUpperCase();
+      const price = getCryptoPrice(symbol);
+      
+      if (!price) {
+        return res.status(404).json({ error: `Price not available for ${symbol}` });
+      }
+      
+      res.json({ symbol, ...price });
+    } catch (error) {
+      console.error("Failed to fetch price:", error);
+      res.status(500).json({ error: "Failed to fetch price" });
+    }
+  });
+
+  // Convert USD to crypto
+  app.post("/api/prices/convert", (req, res) => {
+    try {
+      const { amount, from, to } = req.body;
+      
+      if (from === 'USD') {
+        const cryptoAmount = convertUsdToCrypto(amount, to);
+        res.json({ amount: cryptoAmount, currency: to });
+      } else if (to === 'USD') {
+        const usdAmount = convertCryptoToUsd(amount, from);
+        res.json({ amount: usdAmount.toString(), currency: 'USD' });
+      } else {
+        res.status(400).json({ error: "Only USD conversions supported" });
+      }
+    } catch (error) {
+      console.error("Failed to convert:", error);
+      res.status(500).json({ error: "Conversion failed" });
+    }
   });
 
   // Rate limiting for auth endpoints
@@ -1881,13 +1930,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let fxRateLocked = undefined;
       
       if (orderData.paymentMethod === 'metamask' && orderData.chainId) {
-        // TODO PRODUCTION: Replace with real-time price API
-        const ETH_USD_RATE = 2500;
+        // Use real-time ETH price from CoinGecko
+        const ethPrice = getCryptoPrice('ETH');
+        if (!ethPrice) {
+          return res.status(500).json({ error: "Unable to fetch ETH price" });
+        }
+        
+        const ETH_USD_RATE = ethPrice.usd;
         fxRateLocked = ETH_USD_RATE.toString();
-        expectedCryptoAmount = (parseFloat(orderData.totalAmount) / ETH_USD_RATE).toFixed(18);
+        expectedCryptoAmount = convertUsdToCrypto(parseFloat(orderData.totalAmount), 'ETH');
         expectedChainId = orderData.chainId.toString();
         
-        console.log(`📊 Order expected payment: ${expectedCryptoAmount} ETH on chain ${expectedChainId} (rate: ${ETH_USD_RATE})`);
+        console.log(`📊 Order expected payment: ${expectedCryptoAmount} ETH on chain ${expectedChainId} (rate: $${ETH_USD_RATE.toFixed(2)})`);
       }
       
       const order = await storage.createOrder({
@@ -5493,6 +5547,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch system health:", error);
       res.status(500).json({ error: "Failed to fetch system health" });
+    }
+  });
+
+  // Get platform revenue dashboard (OWNER ONLY)
+  app.get("/api/platform/revenue", requireOwner, async (req, res) => {
+    try {
+      const { period = '30d' } = req.query;
+      
+      // Calculate date range
+      const now = new Date();
+      let startDate = new Date();
+      if (period === '7d') {
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (period === '30d') {
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      } else if (period === '90d') {
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      }
+
+      // 1. E-commerce revenue from orders
+      const ordersResult = await dbClient
+        .select({
+          total: sql<string>`COALESCE(SUM(CAST(total_amount AS NUMERIC)), 0)`,
+          count: sql<string>`COALESCE(COUNT(*), 0)`
+        })
+        .from(orders)
+        .where(and(
+          eq(orders.status, 'completed'),
+          gte(orders.createdAt, startDate)
+        ));
+      
+      const ecommerceRevenue = parseFloat(ordersResult[0]?.total || '0');
+      const orderCount = parseInt(ordersResult[0]?.count || '0');
+
+      // 2. Marketplace fees (assume 2% fee on sales)
+      const marketplaceResult = await dbClient
+        .select({
+          total: sql<string>`COALESCE(SUM(CAST(price AS NUMERIC)), 0)`,
+          count: sql<string>`COALESCE(COUNT(*), 0)`
+        })
+        .from(marketplaceListings)
+        .where(and(
+          eq(marketplaceListings.status, 'sold'),
+          gte(marketplaceListings.createdAt, startDate)
+        ));
+      
+      const marketplaceSales = parseFloat(marketplaceResult[0]?.total || '0');
+      const marketplaceFees = marketplaceSales * 0.02; // 2% platform fee
+      const marketplaceSalesCount = parseInt(marketplaceResult[0]?.count || '0');
+
+      // 3. Trading bot performance fees (assume 10% of profits)
+      const tradingResult = await dbClient
+        .select({
+          totalProfit: sql<string>`COALESCE(SUM(CAST(profit AS NUMERIC)), 0)`,
+          count: sql<string>`COALESCE(COUNT(*), 0)`
+        })
+        .from(botTrades)
+        .where(and(
+          eq(botTrades.status, 'filled'),
+          gte(botTrades.createdAt, startDate),
+          sql`CAST(${botTrades.profit} AS NUMERIC) > 0`
+        ));
+      
+      const totalTradingProfit = parseFloat(tradingResult[0]?.totalProfit || '0');
+      const tradingFees = totalTradingProfit * 0.10; // 10% performance fee
+      const profitableTradesCount = parseInt(tradingResult[0]?.count || '0');
+
+      // 4. Subscription revenue (from subscription_billings)
+      const subscriptionResult = await dbClient
+        .execute(sql`
+          SELECT 
+            COALESCE(SUM(CAST(amount AS NUMERIC)), 0) as total,
+            COALESCE(COUNT(*), 0) as count
+          FROM subscription_billings
+          WHERE status = 'paid'
+          AND created_at >= ${startDate.toISOString()}
+        `);
+      
+      const subscriptionRevenue = parseFloat(subscriptionResult.rows[0]?.total || '0');
+      const subscriptionCount = parseInt(subscriptionResult.rows[0]?.count || '0');
+
+      // 5. Affiliate commissions (money we save, not paid out)
+      const affiliateResult = await dbClient
+        .execute(sql`
+          SELECT 
+            COALESCE(SUM(CAST(commission_amount AS NUMERIC)), 0) as total,
+            COALESCE(COUNT(*), 0) as count
+          FROM affiliate_referrals
+          WHERE status IN ('pending', 'approved')
+          AND created_at >= ${startDate.toISOString()}
+        `);
+      
+      const pendingAffiliateCosts = parseFloat(affiliateResult.rows[0]?.total || '0');
+      const affiliateReferralCount = parseInt(affiliateResult.rows[0]?.count || '0');
+
+      // 6. Flash sales revenue
+      const flashSalesResult = await dbClient
+        .select({
+          count: sql<string>`COALESCE(SUM(CAST(sold_quantity AS NUMERIC)), 0)`
+        })
+        .from(flashSales)
+        .where(gte(flashSales.createdAt, startDate));
+      
+      const flashSalesCount = parseInt(flashSalesResult[0]?.count || '0');
+
+      // Calculate totals
+      const totalRevenue = ecommerceRevenue + marketplaceFees + tradingFees + subscriptionRevenue;
+      const netRevenue = totalRevenue - pendingAffiliateCosts;
+
+      res.json({
+        period,
+        startDate: startDate.toISOString(),
+        endDate: now.toISOString(),
+        revenue: {
+          total: totalRevenue.toFixed(2),
+          net: netRevenue.toFixed(2),
+          bySource: {
+            ecommerce: {
+              amount: ecommerceRevenue.toFixed(2),
+              count: orderCount,
+              label: 'E-commerce Sales'
+            },
+            marketplace: {
+              amount: marketplaceFees.toFixed(2),
+              count: marketplaceSalesCount,
+              label: 'Marketplace Fees (2%)'
+            },
+            trading: {
+              amount: tradingFees.toFixed(2),
+              count: profitableTradesCount,
+              label: 'Trading Bot Fees (10%)'
+            },
+            subscriptions: {
+              amount: subscriptionRevenue.toFixed(2),
+              count: subscriptionCount,
+              label: 'Subscription Revenue'
+            }
+          },
+          costs: {
+            affiliateCommissions: {
+              amount: pendingAffiliateCosts.toFixed(2),
+              count: affiliateReferralCount,
+              label: 'Pending Affiliate Payouts'
+            }
+          }
+        },
+        metrics: {
+          totalTransactions: orderCount + marketplaceSalesCount + profitableTradesCount + subscriptionCount,
+          avgTransactionValue: orderCount > 0 ? (totalRevenue / orderCount).toFixed(2) : '0',
+          flashSalesVolume: flashSalesCount
+        }
+      });
+    } catch (error) {
+      console.error("Failed to fetch platform revenue:", error);
+      res.status(500).json({ error: "Failed to fetch platform revenue" });
     }
   });
 
