@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Enabling Demo Mode...</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+    }
+    h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+    p { font-size: 1.2rem; margin: 1rem 0; }
+    .success { color: #4ade80; font-size: 4rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success">✓</div>
+    <h1>Demo Mode Enabled!</h1>
+    <p>Redirecting to Wallet Nexus...</p>
+    <p style="font-size: 0.9rem; opacity: 0.8; margin-top: 2rem;">
+      You'll now see demo wallets with balances like 1245.89 ETH
+    </p>
+  </div>
+  <script>
+    localStorage.setItem('codex_demo_mode', 'true');
+    setTimeout(() => {
+      window.location.href = '/wallet-nexus';
+    }, 2000);
+  </script>
+</body>
+</html>

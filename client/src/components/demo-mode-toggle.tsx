@@ -9,12 +9,6 @@ import { FlaskConical, Sparkles } from "lucide-react";
 
 export default function DemoModeToggle() {
   const { isDemoMode, toggleDemoMode } = useDemoMode();
-  const { account } = useWeb3();
-
-  // Don't show if wallet is connected
-  if (account) {
-    return null;
-  }
 
   return (
     <Card className="border-purple-500/30 bg-gradient-to-br from-purple-900/10 to-blue-900/10" data-testid="demo-mode-card">
