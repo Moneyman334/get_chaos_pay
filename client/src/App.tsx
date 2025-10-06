@@ -95,6 +95,8 @@ import WalletNexusPage from "@/pages/wallet-nexus";
 import { WalletNexusProvider } from "@/lib/wallet-nexus";
 import BridgePage from "@/pages/bridge";
 import { ProtectedRoute } from "@/components/protected-route";
+import { useDevAutoLogin } from "@/hooks/use-dev-auto-login";
+import { useDevWalletAutoConnect } from "@/hooks/use-dev-wallet-auto-connect";
 
 function Router() {
   return (
@@ -212,6 +214,12 @@ function Router() {
 function AppContent() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const { connectWallet, disconnectWallet, chainId } = useWeb3();
+  
+  // DEV MODE: Configurable auto-login (can be controlled via preferences)
+  useDevAutoLogin();
+  
+  // DEV MODE: Configurable auto-wallet connect (can be controlled via preferences)
+  useDevWalletAutoConnect();
   
   // Initialize wallet session management with activity tracking
   useWalletSession();

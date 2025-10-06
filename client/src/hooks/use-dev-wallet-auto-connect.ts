@@ -10,6 +10,12 @@ interface UserWallet {
   network: string;
 }
 
+interface UserPreferences {
+  autoLoginEnabled: string;
+  autoConnectEnabled: string;
+  lastWalletId?: string;
+}
+
 export function useDevWalletAutoConnect() {
   const { isDemoMode, enableDemoMode } = useDemoMode();
   const { wallets, isInitialized } = useWalletNexus();
@@ -21,10 +27,22 @@ export function useDevWalletAutoConnect() {
     enabled: import.meta.env.DEV && isInitialized,
   });
 
+  // Fetch user preferences
+  const { data: preferences } = useQuery<UserPreferences>({
+    queryKey: ['/api/preferences'],
+    enabled: import.meta.env.DEV && isInitialized,
+  });
+
   useEffect(() => {
     const autoConnect = async () => {
       // Only in development mode
       if (!import.meta.env.DEV || hasAttemptedConnect || !isInitialized) {
+        return;
+      }
+
+      // Check if auto-connect is enabled in preferences
+      if (preferences && preferences.autoConnectEnabled !== 'true') {
+        console.log('ℹ️ Auto-connect disabled in user preferences');
         return;
       }
 
@@ -82,7 +100,7 @@ export function useDevWalletAutoConnect() {
     };
 
     autoConnect();
-  }, [isDemoMode, enableDemoMode, wallets, hasAttemptedConnect, isInitialized, userWallets]);
+  }, [isDemoMode, enableDemoMode, wallets, hasAttemptedConnect, isInitialized, userWallets, preferences]);
 
   return { isDemoMode, isConnected: wallets.size > 0 };
 }
