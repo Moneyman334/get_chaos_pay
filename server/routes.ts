@@ -9,7 +9,19 @@ import {
   insertContractSchema,
   insertContractCallSchema,
   insertContractEventSubSchema,
-  insertUserSchema
+  insertUserSchema,
+  insertSubscriptionPlanSchema,
+  insertSubscriptionSchema,
+  insertAffiliateSchema,
+  insertAffiliateReferralSchema,
+  insertProductVariantSchema,
+  insertFlashSaleSchema,
+  insertAbandonedCartSchema,
+  insertCustomerTierSchema,
+  insertCustomerTierAssignmentSchema,
+  insertProductRecommendationSchema,
+  insertPreOrderSchema,
+  insertRecentlyViewedSchema
 } from "@shared/schema";
 import { nftService } from "./nft";
 import rateLimit from "express-rate-limit";
@@ -29,7 +41,21 @@ import {
   postHistory,
   marketplaceListings,
   discountCodes,
-  flashSales
+  flashSales,
+  subscriptionPlans,
+  subscriptions,
+  subscriptionBillings,
+  affiliates,
+  affiliateReferrals,
+  productVariants,
+  abandonedCarts,
+  customerTiers,
+  customerTierAssignments,
+  productRecommendations,
+  preOrders,
+  recentlyViewed,
+  products,
+  securityAlerts
 } from "@shared/schema";
 import { eq, and, sql, desc, lte, gte, or, isNull } from "drizzle-orm";
 import { SecurityFortress } from "./security-fortress";
