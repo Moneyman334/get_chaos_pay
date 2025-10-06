@@ -143,15 +143,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Enhanced rate limiting with security fortress
   const authRateLimit = SecurityFortress.createRateLimiter('STRICT', 'Too many authentication attempts');
+  const authSpeedLimit = SecurityFortress.createSpeedLimiter('STRICT');
   const tradingRateLimit = SecurityFortress.createRateLimiter('TRADING', 'Trading rate limit exceeded');
+  const tradingSpeedLimit = SecurityFortress.createSpeedLimiter('TRADING');
   const paymentRateLimit = SecurityFortress.createRateLimiter('PAYMENT', 'Payment rate limit exceeded');
+  const paymentSpeedLimit = SecurityFortress.createSpeedLimiter('PAYMENT');
   const generalApiLimit = SecurityFortress.createRateLimiter('MODERATE');
   const publicDataLimit = SecurityFortress.createRateLimiter('RELAXED');
 
   // ===== AUTHENTICATION ROUTES =====
 
   // User registration with secure password hashing
-  app.post("/api/auth/register", authRateLimit, async (req, res) => {
+  app.post("/api/auth/register", authRateLimit, authSpeedLimit, async (req, res) => {
     try {
       const registrationSchema = z.object({
         username: z.string()
@@ -201,7 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User login with password verification
-  app.post("/api/auth/login", authRateLimit, async (req, res) => {
+  app.post("/api/auth/login", authRateLimit, authSpeedLimit, async (req, res) => {
     try {
       const loginSchema = z.object({
         username: z.string().min(1, "Username is required"),
@@ -1753,7 +1756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create payment
-  app.post("/api/payments/create", async (req, res) => {
+  app.post("/api/payments/create", paymentRateLimit, paymentSpeedLimit, async (req, res) => {
     try {
       const paymentSchema = z.object({
         amount: z.number().positive(),
@@ -1938,7 +1941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Order Routes
-  app.post("/api/orders/create", async (req, res) => {
+  app.post("/api/orders/create", paymentRateLimit, paymentSpeedLimit, async (req, res) => {
     try {
       const orderSchema = z.object({
         customerEmail: z.string().email().optional(),
@@ -2052,7 +2055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Payment Processing Routes
-  app.post("/api/payments/metamask", async (req, res) => {
+  app.post("/api/payments/metamask", paymentRateLimit, paymentSpeedLimit, async (req, res) => {
     try {
       const paymentSchema = z.object({
         orderId: z.string().uuid(),
@@ -2211,7 +2214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/payments/nowpayments", async (req, res) => {
+  app.post("/api/payments/nowpayments", paymentRateLimit, paymentSpeedLimit, async (req, res) => {
     try {
       const paymentSchema = z.object({
         orderId: z.string(),
@@ -2275,7 +2278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/payments/:id/confirm", async (req, res) => {
+  app.post("/api/payments/:id/confirm", paymentRateLimit, paymentSpeedLimit, async (req, res) => {
     try {
       const confirmSchema = z.object({
         confirmations: z.string().optional(),
@@ -2411,7 +2414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create bot subscription
-  app.post("/api/bot/subscribe", async (req, res) => {
+  app.post("/api/bot/subscribe", paymentRateLimit, paymentSpeedLimit, async (req, res) => {
     try {
       const subscriptionSchema = z.object({
         userId: z.string(),
@@ -2536,7 +2539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start bot with strategy (advanced bot system)
-  app.post("/api/bot-advanced/start", async (req, res) => {
+  app.post("/api/bot-advanced/start", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const startSchema = z.object({
         userId: z.string(),
@@ -2595,7 +2598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stop bot strategy (advanced bot system)
-  app.post("/api/bot-advanced/stop/:activeStrategyId", async (req, res) => {
+  app.post("/api/bot-advanced/stop/:activeStrategyId", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { activeStrategyId } = req.params;
       await storage.stopBotStrategy(activeStrategyId);
@@ -5457,7 +5460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Place trading order
-  app.post("/api/trading/orders", async (req, res) => {
+  app.post("/api/trading/orders", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const orderSchema = z.object({
         pair: z.string(),
@@ -5522,7 +5525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Cancel order
-  app.post("/api/trading/orders/:orderId/cancel", async (req, res) => {
+  app.post("/api/trading/orders/:orderId/cancel", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { orderId } = req.params;
       

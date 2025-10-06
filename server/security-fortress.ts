@@ -24,7 +24,7 @@ export const SECURITY_CONFIG = {
     'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';",
+    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.coingecko.com https://api.moralis.io https://api.twitter.com https://api.coinbase.com; object-src 'none'; base-uri 'self'; form-action 'self'",
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   },
@@ -55,10 +55,6 @@ export function createRateLimiter(tier: keyof typeof SECURITY_CONFIG.RATE_LIMITS
     legacyHeaders: false,
     // Skip successful requests for better performance
     skipSuccessfulRequests: false,
-    // Custom key generator for more precise tracking
-    keyGenerator: (req: Request) => {
-      return req.ip || req.headers['x-forwarded-for'] as string || 'unknown';
-    },
     // Handler for when limit is exceeded
     handler: (req: Request, res: Response) => {
       res.status(429).json({
