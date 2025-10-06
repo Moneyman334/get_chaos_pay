@@ -463,7 +463,6 @@ export async function getTokenMetadata(contractAddress: string): Promise<TokenMe
       totalSupply
     };
   } catch (error) {
-    console.error('Failed to get token metadata:', error);
     return null;
   }
 }
@@ -495,7 +494,6 @@ export async function getTokenBalance(contractAddress: string, walletAddress: st
 
     return BigInt(result || '0x0').toString();
   } catch (error) {
-    console.error('Failed to get token balance:', error);
     return '0';
   }
 }

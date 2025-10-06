@@ -15,12 +15,17 @@ export async function apiRequest(
 ): Promise<Response> {
   const shouldIncludeBody = method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD';
   
-  const res = await fetchWithRetry(url, {
+  const options: RequestInit = {
     method,
-    headers: (shouldIncludeBody && data) ? { "Content-Type": "application/json" } : {},
-    body: (shouldIncludeBody && data) ? JSON.stringify(data) : undefined,
     credentials: "include",
-  }, {
+  };
+
+  if (shouldIncludeBody && data) {
+    options.headers = { "Content-Type": "application/json" };
+    options.body = JSON.stringify(data);
+  }
+  
+  const res = await fetchWithRetry(url, options, {
     maxRetries: 2,
     initialDelay: 1000,
     retryableStatuses: [408, 429, 500, 502, 503, 504]
