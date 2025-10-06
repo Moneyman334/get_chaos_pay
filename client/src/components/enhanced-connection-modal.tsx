@@ -56,8 +56,21 @@ export default function EnhancedConnectionModal({
 
   useEffect(() => {
     const detectWallets = () => {
-      const hasMetaMask = typeof window.ethereum !== 'undefined' && window.ethereum.isMetaMask;
-      const hasCoinbase = typeof window.ethereum !== 'undefined' && (window.ethereum as any).isCoinbaseWallet;
+      let hasMetaMask = false;
+      let hasCoinbase = false;
+      
+      // Check if there are multiple wallet providers
+      if (typeof window.ethereum !== 'undefined') {
+        if ((window.ethereum as any).providers?.length > 0) {
+          // Multiple wallets installed
+          hasMetaMask = (window.ethereum as any).providers.some((p: any) => p.isMetaMask);
+          hasCoinbase = (window.ethereum as any).providers.some((p: any) => p.isCoinbaseWallet);
+        } else {
+          // Single wallet
+          hasMetaMask = window.ethereum.isMetaMask || false;
+          hasCoinbase = (window.ethereum as any).isCoinbaseWallet || false;
+        }
+      }
       
       const options: WalletOption[] = [
         {

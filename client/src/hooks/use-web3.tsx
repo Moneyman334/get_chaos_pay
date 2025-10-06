@@ -63,18 +63,32 @@ export function useWeb3() {
         return;
       }
       
-      const accounts = await window.ethereum.request({ 
+      // Get MetaMask provider specifically (handles multiple wallet providers)
+      let provider = window.ethereum;
+      
+      // Check if there are multiple wallet providers
+      if ((window.ethereum as any).providers?.length > 0) {
+        // Find MetaMask in the providers array
+        const metamaskProvider = (window.ethereum as any).providers.find(
+          (p: any) => p.isMetaMask
+        );
+        if (metamaskProvider) {
+          provider = metamaskProvider;
+        }
+      }
+      
+      const accounts = await provider.request({ 
         method: 'eth_accounts' 
       });
       
       if (accounts.length > 0) {
         const account = accounts[0];
-        const balance = await window.ethereum.request({
+        const balance = await provider.request({
           method: 'eth_getBalance',
           params: [account, 'latest']
         });
         
-        const chainId = await window.ethereum.request({
+        const chainId = await provider.request({
           method: 'eth_chainId'
         });
         
@@ -166,7 +180,21 @@ export function useWeb3() {
         return;
       }
 
-      const accounts = await window.ethereum.request({
+      // Get MetaMask provider specifically (handles multiple wallet providers)
+      let provider = window.ethereum;
+      
+      // Check if there are multiple wallet providers
+      if ((window.ethereum as any).providers?.length > 0) {
+        // Find MetaMask in the providers array
+        const metamaskProvider = (window.ethereum as any).providers.find(
+          (p: any) => p.isMetaMask
+        );
+        if (metamaskProvider) {
+          provider = metamaskProvider;
+        }
+      }
+
+      const accounts = await provider.request({
         method: 'eth_requestAccounts'
       });
 
