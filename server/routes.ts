@@ -2152,8 +2152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = paymentSchema.parse(req.body);
       
       // SECURITY: Check txHash uniqueness - prevent replay attacks
-      const existingPayments = await storage.getPayments();
-      const existingTx = existingPayments.find(p => p.txHash === data.txHash);
+      const existingTx = await storage.getPaymentByTxHash(data.txHash);
       if (existingTx) {
         console.error(`❌ Transaction hash already used: ${data.txHash}`);
         return res.status(400).json({ 
