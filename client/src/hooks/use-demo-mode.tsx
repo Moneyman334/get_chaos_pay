@@ -16,6 +16,10 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
     const savedMode = localStorage.getItem("codex_demo_mode");
     if (savedMode === "true") {
       setIsDemoMode(true);
+    } else {
+      // Auto-enable demo mode for better user experience
+      setIsDemoMode(true);
+      localStorage.setItem("codex_demo_mode", "true");
     }
   }, []);
 
