@@ -747,6 +747,57 @@ export type AutoCompoundStake = typeof autoCompoundStakes.$inferSelect;
 export type InsertCompoundEvent = z.infer<typeof insertCompoundEventSchema>;
 export type CompoundEvent = typeof compoundEvents.$inferSelect;
 
+// Yield Farming System
+export const yieldFarmPools = pgTable("yield_farm_pools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  token0: text("token0").notNull(), // First token in LP pair
+  token1: text("token1").notNull(), // Second token in LP pair
+  apy: text("apy").notNull(), // Annual Percentage Yield
+  tvl: text("tvl").notNull().default("0"), // Total Value Locked
+  rewardToken: text("reward_token").notNull(), // Token rewarded
+  lockPeriod: text("lock_period").notNull().default("0"), // Days
+  status: text("status").notNull().default("active"), // active, ended
+  multiplier: text("multiplier").notNull().default("1"), // Reward multiplier
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  statusIdx: index("yield_farm_pools_status_idx").on(table.status),
+}));
+
+export const yieldFarmPositions = pgTable("yield_farm_positions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => yieldFarmPools.id),
+  user: text("user").notNull(), // Wallet address
+  amount: text("amount").notNull(), // LP tokens deposited
+  rewards: text("rewards").notNull().default("0"), // Pending rewards
+  depositDate: timestamp("deposit_date").notNull().defaultNow(),
+  autoCompound: text("auto_compound").notNull().default("false"), // Auto-compound enabled
+  harvestCount: text("harvest_count").notNull().default("0"), // Number of harvests
+  totalRewardsEarned: text("total_rewards_earned").notNull().default("0"), // Total earned
+  lastRewardUpdate: timestamp("last_reward_update").defaultNow(),
+}, (table) => ({
+  poolIdx: index("yield_farm_positions_pool_idx").on(table.poolId),
+  userLowerIdx: index("yield_farm_positions_user_lower_idx").on(sql`lower(${table.user})`),
+}));
+
+export const insertYieldFarmPoolSchema = createInsertSchema(yieldFarmPools).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertYieldFarmPositionSchema = createInsertSchema(yieldFarmPositions).omit({
+  id: true,
+  depositDate: true,
+  lastRewardUpdate: true,
+});
+
+export type InsertYieldFarmPool = z.infer<typeof insertYieldFarmPoolSchema>;
+export type YieldFarmPool = typeof yieldFarmPools.$inferSelect;
+export type InsertYieldFarmPosition = z.infer<typeof insertYieldFarmPositionSchema>;
+export type YieldFarmPosition = typeof yieldFarmPositions.$inferSelect;
+
 export const socialAccounts = pgTable("social_accounts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
