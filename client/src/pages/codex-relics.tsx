@@ -366,18 +366,9 @@ export default function CodexRelicsPage() {
 
           {/* FORGE TAB */}
           <TabsContent value="forge" className="space-y-6">
-            <Card className="bg-gradient-to-br from-orange-600/20 to-red-600/20 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Flame className="w-6 h-6 text-orange-400" />
-                  Relic Forge
-                </CardTitle>
-                <CardDescription className="text-orange-200">
-                  Burn resources to craft powerful relics
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {!isConnected ? (
+            {!isConnected ? (
+              <Card className="bg-gradient-to-br from-orange-600/20 to-red-600/20 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400/30">
+                <CardContent className="pt-6">
                   <div className="text-center py-12">
                     <Wallet className="w-20 h-20 text-orange-400 mx-auto mb-4" />
                     <h3 className="text-2xl font-bold text-white mb-3">Connect Your Wallet</h3>
@@ -385,17 +376,11 @@ export default function CodexRelicsPage() {
                       Connect your wallet to access the Relic Forge
                     </p>
                   </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Flame className="w-20 h-20 text-orange-400 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-white mb-3">Forge Coming Soon</h3>
-                    <p className="text-orange-200">
-                      The Relic Forge will allow you to burn CDX tokens and NFTs to craft rare relics
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ) : (
+              <ForgeContent account={account} />
+            )}
           </TabsContent>
 
           {/* MY RELICS TAB */}
@@ -604,5 +589,215 @@ export default function CodexRelicsPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+function ForgeContent({ account }: { account: string }) {
+  const { toast } = useToast();
+  const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
+  
+  const { data: recipes, isLoading: recipesLoading } = useQuery({
+    queryKey: ["/api/forge/recipes"],
+  });
+  
+  const { data: inventory, isLoading: inventoryLoading } = useQuery({
+    queryKey: [`/api/forge/inventory/${account}`],
+    enabled: !!account,
+  });
+  
+  const { data: sessions, isLoading: sessionsLoading } = useQuery({
+    queryKey: [`/api/forge/sessions/${account}`],
+    enabled: !!account,
+  });
+  
+  const craftMutation = useMutation({
+    mutationFn: async (recipeId: string) => {
+      return await apiRequest("POST", "/api/forge/craft", {
+        walletAddress: account,
+        recipeId,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/forge/sessions/${account}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/forge/inventory/${account}`] });
+      toast({
+        title: "Crafting Started",
+        description: "Your relic is being forged! Check back when it's ready.",
+      });
+      setSelectedRecipe(null);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Crafting Failed",
+        description: error.message || "Failed to start crafting.",
+      });
+    },
+  });
+  
+  const completeMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      return await apiRequest("POST", `/api/forge/complete/${sessionId}`, {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/forge/sessions/${account}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/codex/relics/instances/${account}`] });
+      if (data.success) {
+        toast({
+          title: "Crafting Successful!",
+          description: `You've forged a ${data.relic.relic?.name || 'new relic'}!`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Crafting Failed",
+          description: "The forge attempt was unsuccessful. Better luck next time!",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Completion Failed",
+        description: error.message || "Failed to complete crafting.",
+      });
+    },
+  });
+  
+  const activeSessions = sessions?.filter((s: any) => s.status === "in_progress") || [];
+  const completedSessions = sessions?.filter((s: any) => s.status !== "in_progress") || [];
+  
+  const isSessionReady = (session: any) => {
+    return new Date() >= new Date(session.completesAt);
+  };
+  
+  return (
+    <>
+      {/* Active Crafting Sessions */}
+      {activeSessions.length > 0 && (
+        <Card className="bg-gradient-to-br from-orange-600/20 to-red-600/20 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400/30">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-400 animate-pulse" />
+              Active Forging
+            </CardTitle>
+            <CardDescription className="text-orange-200">
+              Your relics are being forged
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {activeSessions.map((session: any) => {
+                const ready = isSessionReady(session);
+                const timeLeft = Math.max(0, new Date(session.completesAt).getTime() - Date.now());
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                
+                return (
+                  <div
+                    key={session.id}
+                    className="bg-orange-900/20 border border-orange-400/30 rounded-lg p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-white font-semibold">Forging in Progress</h4>
+                        <p className="text-orange-200 text-sm">
+                          {ready ? (
+                            <span className="text-green-400 flex items-center gap-1">
+                              <CheckCircle2 className="w-4 h-4" />
+                              Ready to complete!
+                            </span>
+                          ) : (
+                            <span>{minutes}m {seconds}s remaining</span>
+                          )}
+                        </p>
+                      </div>
+                      {ready && (
+                        <Button
+                          onClick={() => completeMutation.mutate(session.id)}
+                          disabled={completeMutation.isPending}
+                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                          data-testid={`button-complete-${session.id}`}
+                        >
+                          Complete Forging
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Forge Recipes */}
+      <Card className="bg-gradient-to-br from-orange-600/20 to-red-600/20 dark:from-orange-900/30 dark:to-red-900/30 border-orange-400/30">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Flame className="w-6 h-6 text-orange-400" />
+            Forge Recipes
+          </CardTitle>
+          <CardDescription className="text-orange-200">
+            Craft powerful relics using materials and CDX tokens
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recipesLoading ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-32 bg-orange-800/30" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {recipes?.map((recipe: any) => (
+                <div
+                  key={recipe.id}
+                  className="bg-orange-900/20 border border-orange-400/30 rounded-lg p-4 hover:border-orange-400/50 transition-colors"
+                >
+                  <h3 className="text-white font-bold text-lg mb-2">{recipe.name}</h3>
+                  <p className="text-orange-200 text-sm mb-4">{recipe.description}</p>
+                  
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-yellow-400">
+                      <Sparkles className="w-4 h-4" />
+                      <span className="text-sm">{recipe.cdxCost} CDX Required</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-orange-300">
+                      <TrendingUp className="w-4 h-4" />
+                      <span className="text-sm">{recipe.successRate}% Success Rate</span>
+                    </div>
+                  </div>
+                  
+                  {recipe.materials && (recipe.materials as any[]).length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-orange-200 text-sm mb-2">Materials Required:</p>
+                      <div className="space-y-1">
+                        {(recipe.materials as any[]).map((mat: any, idx: number) => (
+                          <div key={idx} className="text-orange-300 text-sm">
+                            • {mat.quantity}x Material #{mat.materialId.slice(0, 8)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <Button
+                    onClick={() => craftMutation.mutate(recipe.id)}
+                    disabled={craftMutation.isPending || activeSessions.length >= 3}
+                    className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+                    data-testid={`button-craft-${recipe.id}`}
+                  >
+                    <Flame className="w-4 h-4 mr-2" />
+                    Forge This Relic
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
