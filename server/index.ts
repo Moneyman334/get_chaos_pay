@@ -125,6 +125,14 @@ app.use((req, res, next) => {
     console.error("Failed to seed platform addresses:", error);
   }
 
+  // Seed demo wallets for owner
+  const { seedDemoWallets } = await import("./seed-demo-wallets");
+  try {
+    await seedDemoWallets(storage);
+  } catch (error) {
+    console.error("Failed to seed demo wallets:", error);
+  }
+
   const server = await registerRoutes(app);
   
   // Start auto-compound engine
