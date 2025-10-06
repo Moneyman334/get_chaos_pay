@@ -28,15 +28,30 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         body: JSON.stringify(credentials),
       });
     },
-    onSuccess: () => {
+    onSuccess: async (data: any) => {
       toast({
         title: "Success!",
         description: "You've logged in successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       onClose();
-      // Reload to update navigation
-      window.location.reload();
+      
+      // Check if user is owner and redirect accordingly
+      try {
+        const userResponse = await fetch("/api/auth/me", { credentials: "include" });
+        const userData = await userResponse.json();
+        
+        if (userData.isOwner) {
+          // Redirect owner directly to Empire Owner Dashboard
+          window.location.href = "/empire-owner";
+        } else {
+          // Regular users just reload the current page
+          window.location.reload();
+        }
+      } catch (error) {
+        // Fallback to reload if check fails
+        window.location.reload();
+      }
     },
     onError: (error: any) => {
       toast({
