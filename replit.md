@@ -21,7 +21,19 @@ The platform features a "Divine Visual System" with a cosmic theme (purple/blue 
 The frontend uses React 18, TypeScript, Vite, Wouter for routing, and TanStack Query v5 for server state management. It includes a `useWeb3` hook for MetaMask integration, React Hook Form with Zod for validation, and performance optimizations like code splitting and lazy loading. Error handling incorporates React Error Boundaries, network status monitoring, automatic retry, and toast notifications. A comprehensive User Preferences & Analytics System tracks user behavior, manages settings via `localStorage`, and provides an analytics dashboard.
 
 ### Backend
-The backend is an Express.js and TypeScript REST API with modular routes. It uses PostgreSQL and Drizzle ORM. The API architecture includes over 70 RESTful endpoints with rate limiting, authentication, Zod validation, and a storage layer. Security features include PostgreSQL-backed sessions, Bcrypt password hashing, CORS, input sanitization, and SQL injection prevention. Real-time services include an Auto-Compound Engine, Social Media Scheduler, Trading Bot Engine, and **Real-Time Price Service** (CoinGecko API with 5-minute auto-refresh for live crypto prices), designed for stability with graceful shutdown handling.
+The backend is an Express.js and TypeScript REST API with modular routes. It uses PostgreSQL and Drizzle ORM. The API architecture includes over 70 RESTful endpoints with rate limiting, authentication, Zod validation, and a storage layer. Real-time services include an Auto-Compound Engine, Social Media Scheduler, Trading Bot Engine, and **Real-Time Price Service** (CoinGecko API with 5-minute auto-refresh for live crypto prices), designed for stability with graceful shutdown handling.
+
+**Security Fortress**: The platform is configured as an "indestructible fortress" with comprehensive multi-layer security:
+- **Multi-Tier Rate Limiting**: STRICT (10/15min) for auth, TRADING (60/min) for bot/orders, PAYMENT (20/15min) for payments, MODERATE (100/15min) for general API, RELAXED (500/15min) for public data
+- **Dual Protection**: All critical endpoints (auth, payments, trading, staking, vaults) use both rate limiting AND speed limiting (gradual slowdown after 50% of limit)
+- **Transaction Fraud Detection**: Real-time risk analysis with scoring system (0-100), auto-rejection of high-risk transactions, flagging of medium-risk for review
+- **Hardened CSP**: Content-Security-Policy without unsafe-inline or unsafe-eval, strict script-src/style-src directives
+- **Security Headers**: HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- **IPv6-Safe Rate Limiting**: Uses default key generator to prevent IPv6 bypass vulnerabilities
+- **Input Sanitization**: Recursive XSS/injection pattern detection on all request bodies and query params
+- **CORS Hardening**: Strict origin validation with credentials support
+- **Secure Error Handling**: Generic error messages in production, detailed logging for debugging
+- **Request Signing & Validation**: Middleware for signature verification and timestamp validation (available for high-security routes)
 
 **Real-Time Price Oracle**: Integrated CoinGecko API provides live cryptocurrency prices for ETH, BTC, USDC, USDT, DAI, SOL, LTC, DOGE, MATIC, WBTC, and CDX. The price service auto-initializes on server startup and refreshes every 5 minutes. API endpoints at `/api/prices` and `/api/prices/:symbol` serve current USD values with timestamps. This replaces all hardcoded price values throughout the platform, ensuring accurate trading calculations, order valuations, and wallet balances.
 
