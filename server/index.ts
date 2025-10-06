@@ -4,10 +4,26 @@ import connectPgSimple from "connect-pg-simple";
 import { neon } from "@neondatabase/serverless";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { SecurityFortress } from "./security-fortress";
+import cors from "cors";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Apply CORS before other middleware
+app.use(cors(SecurityFortress.CORS_CONFIG));
+
+// Security headers fortress
+app.use(SecurityFortress.securityHeaders);
+
+// Security logging
+app.use(SecurityFortress.securityLogger);
+
+// Body parsing with size limits
+app.use(express.json({ limit: SecurityFortress.SECURITY_CONFIG.MAX_REQUEST_SIZE }));
+app.use(express.urlencoded({ extended: false, limit: SecurityFortress.SECURITY_CONFIG.MAX_REQUEST_SIZE }));
+
+// Input sanitization fortress
+app.use(SecurityFortress.sanitizeInput);
 
 // Configure PostgreSQL session store
 const PgSession = connectPgSimple(session);
@@ -127,13 +143,8 @@ app.use((req, res, next) => {
     console.error("Failed to initialize price service:", error);
   }
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  // Use secure error handler
+  app.use(SecurityFortress.secureErrorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
