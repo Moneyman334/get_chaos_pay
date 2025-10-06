@@ -2710,7 +2710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Stake ETH in a vault (create position)
-  app.post("/api/vaults/:vaultId/stake", async (req, res) => {
+  app.post("/api/vaults/:vaultId/stake", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { vaultId } = req.params;
       const stakeSchema = z.object({
@@ -2784,7 +2784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Unstake from vault (withdraw position)
-  app.post("/api/vaults/positions/:positionId/unstake", async (req, res) => {
+  app.post("/api/vaults/positions/:positionId/unstake", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { positionId } = req.params;
       
@@ -2859,7 +2859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Claim earnings
-  app.post("/api/vaults/earnings/:earningId/claim", async (req, res) => {
+  app.post("/api/vaults/earnings/:earningId/claim", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { earningId } = req.params;
       const claimed = await storage.claimEarning(earningId);
@@ -2918,7 +2918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create new stake
-  app.post("/api/auto-compound/pools/:poolId/stake", async (req, res) => {
+  app.post("/api/auto-compound/pools/:poolId/stake", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { poolId } = req.params;
       const stakeSchema = z.object({
@@ -2982,7 +2982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Withdraw stake
-  app.post("/api/auto-compound/stakes/:stakeId/withdraw", async (req, res) => {
+  app.post("/api/auto-compound/stakes/:stakeId/withdraw", tradingRateLimit, tradingSpeedLimit, async (req, res) => {
     try {
       const { stakeId } = req.params;
       const { walletAddress } = req.body;
@@ -3116,7 +3116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Auto-connect Twitter using environment secrets
-  app.post("/api/social/accounts/auto-connect-twitter", async (req, res) => {
+  app.post("/api/social/accounts/auto-connect-twitter", generalApiLimit, async (req, res) => {
     try {
       const { userId, accountName } = req.body;
       
@@ -3168,7 +3168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create social account
-  app.post("/api/social/accounts", async (req, res) => {
+  app.post("/api/social/accounts", generalApiLimit, async (req, res) => {
     try {
       const accountSchema = z.object({
         userId: z.string().optional(),
@@ -3262,7 +3262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create scheduled post
-  app.post("/api/social/posts", async (req, res) => {
+  app.post("/api/social/posts", generalApiLimit, async (req, res) => {
     try {
       const postSchema = z.object({
         userId: z.string().optional(),
