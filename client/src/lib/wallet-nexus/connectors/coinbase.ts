@@ -18,7 +18,23 @@ export class CoinbaseConnector extends BaseWalletConnector {
   private provider: any = null;
 
   isInstalled(): boolean {
-    return typeof window !== 'undefined' && typeof window.coinbaseWalletExtension !== 'undefined';
+    // Check for Coinbase Wallet extension
+    // Modern Coinbase Wallet injects into window.ethereum with isCoinbaseWallet flag
+    if (typeof window === 'undefined') return false;
+    
+    // Check for dedicated Coinbase provider
+    if (window.coinbaseWalletExtension) return true;
+    
+    // Check for Coinbase in window.ethereum
+    const ethereum = (window as any).ethereum;
+    if (ethereum?.isCoinbaseWallet) return true;
+    
+    // Check for Coinbase in providers array
+    if (ethereum?.providers) {
+      return ethereum.providers.some((p: any) => p.isCoinbaseWallet);
+    }
+    
+    return false;
   }
 
   async checkConnection(): Promise<WalletInfo | null> {
@@ -26,7 +42,8 @@ export class CoinbaseConnector extends BaseWalletConnector {
       return null;
     }
 
-    this.provider = window.coinbaseWalletExtension;
+    // Get Coinbase provider
+    this.provider = this.getCoinbaseProvider();
 
     const accounts = await this.provider.request({
       method: 'eth_accounts'
@@ -73,7 +90,8 @@ export class CoinbaseConnector extends BaseWalletConnector {
       throw new Error('Coinbase Wallet is not installed. Please install Coinbase Wallet extension.');
     }
 
-    this.provider = window.coinbaseWalletExtension;
+    // Get Coinbase provider
+    this.provider = this.getCoinbaseProvider();
 
     const accounts = await this.provider.request({
       method: 'eth_requestAccounts'
@@ -109,6 +127,28 @@ export class CoinbaseConnector extends BaseWalletConnector {
     this.setupEventListeners(walletInfo.id);
 
     return walletInfo;
+  }
+
+  private getCoinbaseProvider(): any {
+    // Check for dedicated Coinbase provider first
+    if (window.coinbaseWalletExtension) {
+      return window.coinbaseWalletExtension;
+    }
+    
+    const ethereum = (window as any).ethereum;
+    
+    // Check if window.ethereum is Coinbase
+    if (ethereum?.isCoinbaseWallet) {
+      return ethereum;
+    }
+    
+    // Check providers array
+    if (ethereum?.providers) {
+      const coinbaseProvider = ethereum.providers.find((p: any) => p.isCoinbaseWallet);
+      if (coinbaseProvider) return coinbaseProvider;
+    }
+    
+    throw new Error('Coinbase Wallet provider not found');
   }
 
   async disconnect(walletId: string): Promise<void> {
