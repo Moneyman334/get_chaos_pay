@@ -154,12 +154,15 @@ import {
   trustedAddresses,
   blockedAddresses,
   securityAlerts,
+  platformAddresses,
   type TrustedAddress,
   type InsertTrustedAddress,
   type BlockedAddress,
   type InsertBlockedAddress,
   type SecurityAlert,
-  type InsertSecurityAlert
+  type InsertSecurityAlert,
+  type PlatformAddress,
+  type InsertPlatformAddress
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/neon-http";
@@ -197,6 +200,9 @@ export interface IStorage {
   removeBlockedAddress(walletAddress: string, blockedAddress: string): Promise<boolean>;
   getSecurityAlerts(walletAddress: string): Promise<SecurityAlert[]>;
   createSecurityAlert(alert: InsertSecurityAlert): Promise<SecurityAlert>;
+  getPlatformAddresses(category?: string): Promise<PlatformAddress[]>;
+  addPlatformAddress(platformAddress: InsertPlatformAddress): Promise<PlatformAddress>;
+  isPlatformAddress(address: string): Promise<boolean>;
   
   // Transaction methods
   getTransactionsByAddress(address: string): Promise<Transaction[]>;
@@ -547,6 +553,7 @@ export class MemStorage implements IStorage {
   private trustedAddresses: Map<string, TrustedAddress>;
   private blockedAddresses: Map<string, BlockedAddress>;
   private securityAlerts: Map<string, SecurityAlert>;
+  private platformAddresses: Map<string, PlatformAddress>;
 
   constructor() {
     this.users = new Map();
@@ -563,6 +570,7 @@ export class MemStorage implements IStorage {
     this.trustedAddresses = new Map();
     this.blockedAddresses = new Map();
     this.securityAlerts = new Map();
+    this.platformAddresses = new Map();
   }
 
   // Health check for MemStorage (always passes)
@@ -716,6 +724,38 @@ export class MemStorage implements IStorage {
     };
     this.securityAlerts.set(id, alert);
     return alert;
+  }
+
+  async getPlatformAddresses(category?: string): Promise<PlatformAddress[]> {
+    const all = Array.from(this.platformAddresses.values())
+      .filter(pa => pa.isActive === "true");
+    if (category) {
+      return all.filter(pa => pa.category === category);
+    }
+    return all;
+  }
+
+  async addPlatformAddress(insertPlatformAddress: InsertPlatformAddress): Promise<PlatformAddress> {
+    const id = randomUUID();
+    const platformAddress: PlatformAddress = {
+      id,
+      address: normalizeAddress(insertPlatformAddress.address),
+      label: insertPlatformAddress.label,
+      category: insertPlatformAddress.category,
+      description: insertPlatformAddress.description || null,
+      isActive: insertPlatformAddress.isActive || "true",
+      addedBy: insertPlatformAddress.addedBy || null,
+      createdAt: new Date()
+    };
+    this.platformAddresses.set(id, platformAddress);
+    return platformAddress;
+  }
+
+  async isPlatformAddress(address: string): Promise<boolean> {
+    const normalizedAddress = normalizeAddress(address);
+    return Array.from(this.platformAddresses.values()).some(
+      pa => normalizeAddress(pa.address) === normalizedAddress && pa.isActive === "true"
+    );
   }
 
   // Transaction methods
@@ -1201,6 +1241,46 @@ export class PostgreSQLStorage implements IStorage {
     };
     const result = await db.insert(securityAlerts).values(data).returning();
     return result[0];
+  }
+
+  async getPlatformAddresses(category?: string): Promise<PlatformAddress[]> {
+    let query = db.select().from(platformAddresses)
+      .where(eq(platformAddresses.isActive, "true"));
+    
+    if (category) {
+      const result = await db.select().from(platformAddresses)
+        .where(and(
+          eq(platformAddresses.isActive, "true"),
+          eq(platformAddresses.category, category)
+        ));
+      return result;
+    }
+    
+    return await query;
+  }
+
+  async addPlatformAddress(insertPlatformAddress: InsertPlatformAddress): Promise<PlatformAddress> {
+    const data = {
+      address: normalizeAddress(insertPlatformAddress.address),
+      label: insertPlatformAddress.label,
+      category: insertPlatformAddress.category,
+      description: insertPlatformAddress.description || null,
+      isActive: insertPlatformAddress.isActive || "true",
+      addedBy: insertPlatformAddress.addedBy || null
+    };
+    const result = await db.insert(platformAddresses).values(data).returning();
+    return result[0];
+  }
+
+  async isPlatformAddress(address: string): Promise<boolean> {
+    const normalizedAddress = normalizeAddress(address);
+    const result = await db.select().from(platformAddresses)
+      .where(and(
+        sql`lower(${platformAddresses.address}) = ${normalizedAddress}`,
+        eq(platformAddresses.isActive, "true")
+      ))
+      .limit(1);
+    return result.length > 0;
   }
 
   // Transaction methods
