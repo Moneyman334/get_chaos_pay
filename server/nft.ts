@@ -406,7 +406,7 @@ export class NFTService {
     // Clean expired cache entries every hour
     setInterval(() => {
       const now = Date.now();
-      for (const [key, value] of this.cache.entries()) {
+      for (const [key, value] of Array.from(this.cache.entries())) {
         if (now > value.timestamp + value.ttl) {
           this.cache.delete(key);
         }
@@ -626,7 +626,7 @@ export class NFTService {
       enrichedOwnerships.push({
         ...ownership,
         nft: nft!,
-        collection
+        collection: collection || null
       });
     }
 
