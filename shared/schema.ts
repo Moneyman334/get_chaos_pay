@@ -11,6 +11,18 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const userPreferences = pgTable("user_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  autoLoginEnabled: text("auto_login_enabled").notNull().default("false"),
+  autoConnectEnabled: text("auto_connect_enabled").notNull().default("false"),
+  lastWalletId: text("last_wallet_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("user_preferences_user_idx").on(table.userId),
+}));
+
 export const wallets = pgTable("wallets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   address: text("address").notNull().unique(),
@@ -361,6 +373,15 @@ export const insertContractEventSchema = createInsertSchema(contractEvents).omit
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export const insertUserPreferencesSchema = createInsertSchema(userPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertUserPreferences = z.infer<typeof insertUserPreferencesSchema>;
+export type UserPreferences = typeof userPreferences.$inferSelect;
+
 export type InsertWallet = z.infer<typeof insertWalletSchema>;
 export type Wallet = typeof wallets.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
