@@ -4836,14 +4836,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const stakingPositions = await storage.getUserStakes(walletAddress);
         for (const pos of stakingPositions) {
-          totalInvested += parseFloat(pos.amount);
-          if (pos.rewards) {
-            totalValue += parseFloat(pos.amount) + parseFloat(pos.rewards);
-            totalEarned += parseFloat(pos.rewards);
-          } else {
-            totalValue += parseFloat(pos.amount);
-          }
-          if (pos.autoCompound === 'true') activePositions++;
+          totalInvested += parseFloat(pos.initialStake);
+          totalValue += parseFloat(pos.currentBalance);
+          totalEarned += parseFloat(pos.totalEarned);
+          if (pos.status === 'active') activePositions++;
         }
       } catch (e) {
         // Staking data may not be available
