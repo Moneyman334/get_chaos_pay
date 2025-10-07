@@ -7861,6 +7861,128 @@ contract ${defaultSymbol} is ERC721, Ownable {
       res.status(500).json({ error: "Failed to update auto-compound" });
     }
   });
+
+  // ==========================================
+  // EMPIRE VAULT ROUTES - DAO TREASURY
+  // ==========================================
+
+  const { empireVaultService } = await import("./empire-vault-service");
+
+  // Get vault stats
+  app.get("/api/empire-vault/stats", async (req, res) => {
+    try {
+      const stats = await empireVaultService.getVaultStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to get vault stats:", error);
+      res.status(500).json({ error: "Failed to get vault stats" });
+    }
+  });
+
+  // Get revenue breakdown
+  app.get("/api/empire-vault/revenue", async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const breakdown = await empireVaultService.getRevenueBreakdown(start, end);
+      res.json(breakdown);
+    } catch (error) {
+      console.error("Failed to get revenue breakdown:", error);
+      res.status(500).json({ error: "Failed to get revenue breakdown" });
+    }
+  });
+
+  // Get user's pending rewards
+  app.get("/api/empire-vault/rewards/:walletAddress", async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      const rewards = await empireVaultService.getUserPendingRewards(walletAddress);
+      res.json(rewards);
+    } catch (error) {
+      console.error("Failed to get pending rewards:", error);
+      res.status(500).json({ error: "Failed to get pending rewards" });
+    }
+  });
+
+  // Claim rewards
+  app.post("/api/empire-vault/claim", async (req, res) => {
+    try {
+      const claimSchema = z.object({
+        walletAddress: z.string(),
+        distributionId: z.string(),
+      });
+
+      const data = claimSchema.parse(req.body);
+      const claimAmount = await empireVaultService.claimRewards(data.walletAddress, data.distributionId);
+      
+      res.json({ 
+        success: true, 
+        claimedAmount: claimAmount,
+        message: `Successfully claimed $${claimAmount.toFixed(2)} from Empire Vault`
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid claim data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to claim rewards:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to claim rewards" });
+    }
+  });
+
+  // Create distribution (Admin/Automated)
+  app.post("/api/empire-vault/distribute", requireOwner, async (req, res) => {
+    try {
+      const distribution = await empireVaultService.createDistribution();
+      res.json({ 
+        success: true, 
+        distribution: {
+          roundNumber: distribution.roundNumber,
+          totalAmount: distribution.totalAmount,
+          eligibleWallets: distribution.eligibleWallets,
+          amountPerShare: distribution.amountPerShare,
+        }
+      });
+    } catch (error) {
+      console.error("Failed to create distribution:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create distribution" });
+    }
+  });
+
+  // Deposit revenue (Internal API - called by revenue services)
+  app.post("/api/empire-vault/deposit", async (req, res) => {
+    try {
+      const depositSchema = z.object({
+        amount: z.number().positive(),
+        source: z.enum(['marketplace', 'trading_bot', 'launchpad', 'ecommerce', 'staking_fees', 'subscription', 'flash_sale']),
+        sourceId: z.string().optional(),
+        description: z.string().optional(),
+        txHash: z.string().optional(),
+      });
+
+      const data = depositSchema.parse(req.body);
+      await empireVaultService.depositRevenue(data);
+      
+      res.json({ 
+        success: true, 
+        message: `Deposited $${data.amount} from ${data.source} to Empire Vault`
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid deposit data", 
+          details: error.errors 
+        });
+      }
+      console.error("Failed to deposit revenue:", error);
+      res.status(500).json({ error: "Failed to deposit revenue" });
+    }
+  });
   
   const httpServer = createServer(app);
   return httpServer;

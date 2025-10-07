@@ -2389,3 +2389,193 @@ export type ForgeInventory = typeof forgeInventory.$inferSelect;
 export type InsertForgeInventory = z.infer<typeof insertForgeInventorySchema>;
 export type ForgeCraftingSession = typeof forgeCraftingSessions.$inferSelect;
 export type InsertForgeCraftingSession = z.infer<typeof insertForgeCraftingSessionSchema>;
+
+// ==========================================
+// EMPIRE VAULT - DAO TREASURY SYSTEM
+// ==========================================
+
+// Main Treasury - Single record tracking vault balance
+export const empireVault = pgTable("empire_vault", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  totalBalance: text("total_balance").notNull().default("0"), // Total ETH/USD in vault
+  totalDeposited: text("total_deposited").notNull().default("0"), // Lifetime deposits
+  totalDistributed: text("total_distributed").notNull().default("0"), // Lifetime distributions
+  treasuryWallet: text("treasury_wallet").notNull(), // Main vault address
+  distributionFrequency: text("distribution_frequency").notNull().default("weekly"), // hourly, daily, weekly, monthly
+  minDistributionAmount: text("min_distribution_amount").notNull().default("1000"), // Min USD to trigger distribution
+  governanceThreshold: text("governance_threshold").notNull().default("10000"), // Min CDX to vote
+  status: text("status").notNull().default("active"), // active, paused, emergency_locked
+  lastDistributionAt: timestamp("last_distribution_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Revenue Deposits - Track all income flowing into vault
+export const empireRevenueDeposits = pgTable("empire_revenue_deposits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  amount: text("amount").notNull(), // Deposit amount
+  source: text("source").notNull(), // marketplace, trading_bot, launchpad, ecommerce, staking_fees, subscription
+  sourceId: text("source_id"), // Reference ID from source system (trade_id, order_id, etc)
+  description: text("description"), // Human-readable description
+  txHash: text("tx_hash"), // On-chain transaction hash
+  status: text("status").notNull().default("confirmed"), // pending, confirmed, failed
+  depositedAt: timestamp("deposited_at").notNull().defaultNow(),
+  metadata: jsonb("metadata"), // Additional context
+}, (table) => ({
+  sourceIdx: index("empire_revenue_deposits_source_idx").on(table.source),
+  statusIdx: index("empire_revenue_deposits_status_idx").on(table.status),
+  depositedAtIdx: index("empire_revenue_deposits_deposited_at_idx").on(table.depositedAt),
+  sourceIdIdx: index("empire_revenue_deposits_source_id_idx").on(table.sourceId),
+}));
+
+// Distribution Rounds - Periodic profit sharing events
+export const empireDistributions = pgTable("empire_distributions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roundNumber: text("round_number").notNull().unique(), // Sequential round counter
+  totalAmount: text("total_amount").notNull(), // Total amount being distributed
+  totalCdxStaked: text("total_cdx_staked").notNull(), // Total CDX staked at snapshot
+  totalShares: text("total_shares").notNull(), // Total distribution shares (includes NFT boosts)
+  amountPerShare: text("amount_per_share").notNull(), // Distribution amount per share
+  eligibleWallets: text("eligible_wallets").notNull().default("0"), // Number of eligible wallets
+  claimedCount: text("claimed_count").notNull().default("0"), // Number who claimed
+  claimedAmount: text("claimed_amount").notNull().default("0"), // Total amount claimed
+  unclaimedAmount: text("unclaimed_amount").notNull().default("0"), // Not yet claimed
+  snapshotBlockNumber: text("snapshot_block_number"), // Block number for snapshot
+  status: text("status").notNull().default("pending"), // pending, active, completed, expired
+  expiresAt: timestamp("expires_at"), // Unclaimed rewards expire after 90 days
+  distributedAt: timestamp("distributed_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata"),
+}, (table) => ({
+  roundIdx: index("empire_distributions_round_idx").on(table.roundNumber),
+  statusIdx: index("empire_distributions_status_idx").on(table.status),
+  distributedAtIdx: index("empire_distributions_distributed_at_idx").on(table.distributedAt),
+}));
+
+// User Shares - Calculate each user's distribution percentage
+export const empireUserShares = pgTable("empire_user_shares", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  distributionId: varchar("distribution_id").notNull().references(() => empireDistributions.id),
+  walletAddress: text("wallet_address").notNull(),
+  cdxStaked: text("cdx_staked").notNull(), // CDX amount staked at snapshot
+  baseShares: text("base_shares").notNull(), // Base shares from CDX stake
+  nftBoostMultiplier: text("nft_boost_multiplier").notNull().default("1.0"), // NFT multiplier (1.0 - 3.0)
+  relicBoostMultiplier: text("relic_boost_multiplier").notNull().default("1.0"), // Relic multiplier
+  totalShares: text("total_shares").notNull(), // Base * NFT boost * Relic boost
+  sharePercentage: text("share_percentage").notNull(), // % of total distribution
+  rewardAmount: text("reward_amount").notNull(), // Calculated reward
+  nftCount: text("nft_count").notNull().default("0"), // Number of NFTs owned
+  relicCount: text("relic_count").notNull().default("0"), // Number of relics equipped
+  governanceWeight: text("governance_weight").notNull().default("0"), // Voting power
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  distributionWalletIdx: index("empire_user_shares_distribution_wallet_idx").on(table.distributionId, table.walletAddress),
+  walletLowerIdx: index("empire_user_shares_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  distributionIdx: index("empire_user_shares_distribution_idx").on(table.distributionId),
+}));
+
+// Reward Claims - Track user claims
+export const empireRewardClaims = pgTable("empire_reward_claims", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  distributionId: varchar("distribution_id").notNull().references(() => empireDistributions.id),
+  userShareId: varchar("user_share_id").notNull().references(() => empireUserShares.id),
+  walletAddress: text("wallet_address").notNull(),
+  claimAmount: text("claim_amount").notNull(),
+  txHash: text("tx_hash"), // Claim transaction hash
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  claimedAt: timestamp("claimed_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata"),
+}, (table) => ({
+  distributionWalletIdx: index("empire_reward_claims_distribution_wallet_idx").on(table.distributionId, table.walletAddress),
+  walletLowerIdx: index("empire_reward_claims_wallet_lower_idx").on(sql`lower(${table.walletAddress})`),
+  statusIdx: index("empire_reward_claims_status_idx").on(table.status),
+  claimedAtIdx: index("empire_reward_claims_claimed_at_idx").on(table.claimedAt),
+}));
+
+// Governance Proposals - DAO voting on vault management
+export const empireGovernanceProposals = pgTable("empire_governance_proposals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposerId: varchar("proposer_id").notNull().references(() => users.id),
+  proposerWallet: text("proposer_wallet").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  proposalType: text("proposal_type").notNull(), // change_distribution, adjust_fees, emergency_action, treasury_allocation
+  targetValue: text("target_value"), // Proposed value/change
+  votesFor: text("votes_for").notNull().default("0"), // Total voting weight FOR
+  votesAgainst: text("votes_against").notNull().default("0"), // Total voting weight AGAINST
+  totalVoters: text("total_voters").notNull().default("0"),
+  quorumRequired: text("quorum_required").notNull().default("10"), // % of total CDX needed to vote
+  status: text("status").notNull().default("active"), // active, passed, rejected, executed, expired
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  metadata: jsonb("metadata"),
+}, (table) => ({
+  proposerIdx: index("empire_governance_proposals_proposer_idx").on(table.proposerId),
+  statusIdx: index("empire_governance_proposals_status_idx").on(table.status),
+  endsAtIdx: index("empire_governance_proposals_ends_at_idx").on(table.endsAt),
+}));
+
+// Governance Votes - Individual votes on proposals
+export const empireGovernanceVotes = pgTable("empire_governance_votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  proposalId: varchar("proposal_id").notNull().references(() => empireGovernanceProposals.id),
+  voterId: varchar("voter_id").notNull().references(() => users.id),
+  voterWallet: text("voter_wallet").notNull(),
+  vote: text("vote").notNull(), // for, against, abstain
+  votingWeight: text("voting_weight").notNull(), // Based on CDX stake + NFT boosts
+  reason: text("reason"), // Optional explanation
+  votedAt: timestamp("voted_at").notNull().defaultNow(),
+}, (table) => ({
+  proposalVoterIdx: index("empire_governance_votes_proposal_voter_idx").on(table.proposalId, table.voterId),
+  proposalIdx: index("empire_governance_votes_proposal_idx").on(table.proposalId),
+  voterIdx: index("empire_governance_votes_voter_idx").on(table.voterId),
+}));
+
+// Insert Schemas
+export const insertEmpireRevenueDepositSchema = createInsertSchema(empireRevenueDeposits).omit({
+  id: true,
+  depositedAt: true,
+});
+
+export const insertEmpireDistributionSchema = createInsertSchema(empireDistributions).omit({
+  id: true,
+  distributedAt: true,
+});
+
+export const insertEmpireUserShareSchema = createInsertSchema(empireUserShares).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEmpireRewardClaimSchema = createInsertSchema(empireRewardClaims).omit({
+  id: true,
+  claimedAt: true,
+});
+
+export const insertEmpireGovernanceProposalSchema = createInsertSchema(empireGovernanceProposals).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEmpireGovernanceVoteSchema = createInsertSchema(empireGovernanceVotes).omit({
+  id: true,
+  votedAt: true,
+});
+
+// Types
+export type EmpireVault = typeof empireVault.$inferSelect;
+export type EmpireRevenueDeposit = typeof empireRevenueDeposits.$inferSelect;
+export type InsertEmpireRevenueDeposit = z.infer<typeof insertEmpireRevenueDepositSchema>;
+export type EmpireDistribution = typeof empireDistributions.$inferSelect;
+export type InsertEmpireDistribution = z.infer<typeof insertEmpireDistributionSchema>;
+export type EmpireUserShare = typeof empireUserShares.$inferSelect;
+export type InsertEmpireUserShare = z.infer<typeof insertEmpireUserShareSchema>;
+export type EmpireRewardClaim = typeof empireRewardClaims.$inferSelect;
+export type InsertEmpireRewardClaim = z.infer<typeof insertEmpireRewardClaimSchema>;
+export type EmpireGovernanceProposal = typeof empireGovernanceProposals.$inferSelect;
+export type InsertEmpireGovernanceProposal = z.infer<typeof insertEmpireGovernanceProposalSchema>;
+export type EmpireGovernanceVote = typeof empireGovernanceVotes.$inferSelect;
+export type InsertEmpireGovernanceVote = z.infer<typeof insertEmpireGovernanceVoteSchema>;
