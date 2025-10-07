@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Chaos Crypto Casino</string>
+    <string name="title_activity_main">Chaos Crypto Casino</string>
+    <string name="package_name">com.chaoscrypto.casino</string>
+    <string name="custom_url_scheme">com.chaoscrypto.casino</string>
+</resources>
