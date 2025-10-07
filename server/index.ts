@@ -25,6 +25,9 @@ app.use(express.urlencoded({ extended: false, limit: SecurityFortress.SECURITY_C
 // Input sanitization fortress
 app.use(SecurityFortress.sanitizeInput);
 
+// Trust Replit proxy for secure cookies
+app.set('trust proxy', 1);
+
 // Configure PostgreSQL session store
 const PgSession = connectPgSimple(session);
 const sessionDb = neon(process.env.DATABASE_URL!);
