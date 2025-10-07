@@ -78,6 +78,7 @@ import CodexRelicsPage from "@/pages/codex-relics";
 import AutoDeployPage from "@/pages/auto-deploy";
 import EmpirePassPage from "@/pages/empire-pass";
 import RevenueDashboardPage from "@/pages/revenue-dashboard";
+import EmpireVaultPage from "@/pages/empire-vault";
 import NotFound from "@/pages/not-found";
 import EnhancedConnectionModal from "@/components/enhanced-connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -107,6 +108,7 @@ function Router() {
       <Route path="/empire" component={EmpireDashboard} />
       <Route path="/vaults" component={HouseVaultsPage} />
       <Route path="/auto-compound" component={AutoCompoundPage} />
+      <Route path="/empire-vault" component={EmpireVaultPage} />
       <Route path="/auto-trading-bot" component={AutoTradingBotPage} />
       <Route path="/games" component={GamesPage} />
       <Route path="/wallet" component={WalletPage} />
