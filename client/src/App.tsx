@@ -76,6 +76,7 @@ import CodexAchievementsPage from "@/pages/codex-achievements";
 import CodexStakingPage from "@/pages/codex-staking";
 import CodexRelicsPage from "@/pages/codex-relics";
 import AutoDeployPage from "@/pages/auto-deploy";
+import EmpirePassPage from "@/pages/empire-pass";
 import NotFound from "@/pages/not-found";
 import EnhancedConnectionModal from "@/components/enhanced-connection-modal";
 import { useWeb3 } from "@/hooks/use-web3";
@@ -161,6 +162,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/subscriptions" component={SubscriptionsPage} />
+      <Route path="/empire-pass" component={EmpirePassPage} />
       <Route path="/affiliate" component={AffiliateDashboardPage} />
       <Route path="/gift-cards" component={GiftCardsPage} />
       <Route path="/loyalty" component={LoyaltyPage} />

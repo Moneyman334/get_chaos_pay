@@ -155,6 +155,14 @@ app.use((req, res, next) => {
     console.error("Failed to seed demo wallets:", error);
   }
 
+  // Seed Empire Pass subscription plans
+  const { seedEmpirePassPlans } = await import("./seed-empire-pass");
+  try {
+    await seedEmpirePassPlans();
+  } catch (error) {
+    console.error("Failed to seed Empire Pass plans:", error);
+  }
+
   const server = await registerRoutes(app);
   
   // Start auto-compound engine
