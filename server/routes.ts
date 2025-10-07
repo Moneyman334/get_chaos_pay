@@ -7489,6 +7489,38 @@ contract ${defaultSymbol} is ERC721, Ownable {
     }
   });
 
+  // ==================== MARKETPLACE FEE SERVICE ====================
+
+  // Calculate marketplace fees for a sale
+  app.post("/api/marketplace/fees/calculate", async (req, res) => {
+    try {
+      const { price, instantSettlement } = req.body;
+      const { marketplaceFeeService } = await import("./marketplace-fee-service");
+      const fees = marketplaceFeeService.getFeeBreakdown(
+        parseFloat(price),
+        instantSettlement === true
+      );
+      res.json(fees);
+    } catch (error) {
+      console.error("Failed to calculate marketplace fees:", error);
+      res.status(500).json({ error: "Failed to calculate fees" });
+    }
+  });
+
+  // Get instant settlement recommendation
+  app.get("/api/marketplace/fees/recommendation/:price", async (req, res) => {
+    try {
+      const { marketplaceFeeService } = await import("./marketplace-fee-service");
+      const recommendation = marketplaceFeeService.recommendInstantSettlement(
+        parseFloat(req.params.price)
+      );
+      res.json(recommendation);
+    } catch (error) {
+      console.error("Failed to get recommendation:", error);
+      res.status(500).json({ error: "Failed to get recommendation" });
+    }
+  });
+
   // ============================================================================
   // YIELD FARMING ROUTES
   // ============================================================================
