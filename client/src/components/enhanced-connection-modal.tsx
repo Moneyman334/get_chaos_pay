@@ -209,12 +209,22 @@ export default function EnhancedConnectionModal({
 
             {showQR ? (
               <div className="text-center space-y-4 p-6">
-                <h3 className="text-lg font-semibold">Scan with Mobile Wallet</h3>
-                <div className="bg-white p-4 rounded-lg inline-block">
-                  <QRCodeSVG value={mobileDeepLink} size={200} />
+                <h3 className="text-lg font-semibold">Mobile Wallet Instructions</h3>
+                <Alert className="text-left">
+                  <Smartphone className="h-4 w-4" />
+                  <AlertDescription className="text-sm space-y-2">
+                    <p><strong>Step 1:</strong> Copy this page's URL from your browser</p>
+                    <p><strong>Step 2:</strong> Open MetaMask or Coinbase Wallet app on your phone</p>
+                    <p><strong>Step 3:</strong> Tap the browser icon (🌐) in the app</p>
+                    <p><strong>Step 4:</strong> Paste the URL and open this page</p>
+                    <p><strong>Step 5:</strong> Click "Connect Wallet" - it will work automatically!</p>
+                  </AlertDescription>
+                </Alert>
+                <div className="bg-white p-4 rounded-lg inline-block border-2 border-dashed border-purple-300">
+                  <QRCodeSVG value={window.location.href} size={200} />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Scan this QR code with your mobile wallet app
+                  Or scan this QR code with your camera app to copy the URL
                 </p>
                 <Button 
                   variant="outline" 
