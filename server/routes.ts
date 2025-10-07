@@ -4561,6 +4561,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== BOT FEE SERVICE ====================
+
+  // Calculate bot fees for a trade
+  app.post("/api/bot/fees/calculate", async (req, res) => {
+    try {
+      const { userId, profit, allocatedCapital } = req.body;
+      const { botFeeService } = await import("./bot-fee-service");
+      const fees = await botFeeService.calculateTradeFees(userId, parseFloat(profit), parseFloat(allocatedCapital));
+      res.json(fees);
+    } catch (error) {
+      console.error("Failed to calculate bot fees:", error);
+      res.status(500).json({ error: "Failed to calculate bot fees" });
+    }
+  });
+
+  // Get user's bot performance tier
+  app.get("/api/bot/performance/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { botFeeService } = await import("./bot-fee-service");
+      const tierInfo = await botFeeService.getUserPerformanceTier(userId);
+      res.json(tierInfo);
+    } catch (error) {
+      console.error("Failed to get performance tier:", error);
+      res.status(500).json({ error: "Failed to get performance tier" });
+    }
+  });
+
+  // Get platform bot revenue for period
+  app.post("/api/bot/revenue", async (req, res) => {
+    try {
+      const { startDate, endDate } = req.body;
+      const { botFeeService } = await import("./bot-fee-service");
+      const revenue = await botFeeService.calculatePlatformBotRevenue(
+        new Date(startDate),
+        new Date(endDate)
+      );
+      res.json(revenue);
+    } catch (error) {
+      console.error("Failed to calculate bot revenue:", error);
+      res.status(500).json({ error: "Failed to calculate bot revenue" });
+    }
+  });
+
   // ==================== PRODUCT VARIANTS ====================
   
   // Get variants for product
