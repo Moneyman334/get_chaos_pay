@@ -61,12 +61,13 @@ class FallbackNFTProvider implements NFTProvider {
   name = "FallbackProvider";
 
   isAvailable(): boolean {
-    return true; // Always available as last resort
+    return false; // Never available - forces explicit provider configuration
   }
 
   async fetchNFTsByOwner(walletAddress: string, chainId: string, cursor?: string): Promise<NFTProviderResponse> {
-    // Return empty result when no real providers are available
-    console.warn(`FallbackNFTProvider: No external NFT providers available. Please configure MORALIS_API_KEY for real NFT data.`);
+    // This should never be called if isAvailable() returns false
+    throw new Error('NFT provider not configured. Please set MORALIS_API_KEY or OPENSEA_API_KEY environment variable.');
+    
     return {
       nfts: [],
       hasMore: false,
@@ -172,8 +173,9 @@ class FallbackNFTProvider implements NFTProvider {
   }
 
   async fetchNFTMetadata(contractAddress: string, tokenId: string, chainId: string): Promise<NFTMetadata | null> {
-    // No real metadata available when providers are not configured
-    console.warn(`FallbackNFTProvider: Unable to fetch metadata for NFT ${contractAddress}:${tokenId} on chain ${chainId}`);
+    // This should never be called if isAvailable() returns false
+    throw new Error('NFT provider not configured. Please set MORALIS_API_KEY or OPENSEA_API_KEY environment variable.');
+    
     return null;
     
     // Legacy mock metadata (commented out for production)
@@ -390,13 +392,27 @@ export class NFTService {
     this.providers = [
       new MoralisProvider(),
       new OpenSeaProvider(),
-      new FallbackNFTProvider() // Last resort fallback
+      new FallbackNFTProvider() // Throws error if used (never available)
     ];
     
     // Use first available provider as default
-    this.defaultProvider = this.providers.find(p => p.isAvailable()) || this.providers[this.providers.length - 1];
+    const availableProvider = this.providers.find(p => p.isAvailable());
     
-    console.log(`NFT Service initialized with provider: ${this.defaultProvider.name}`);
+    if (!availableProvider) {
+      console.warn(`\n⚠️  NFT Service Configuration Warning:\n` +
+        `   No NFT providers are configured!\n` +
+        `   To enable real NFT data fetching, please:\n` +
+        `   1. Sign up for a Moralis account at https://moralis.io\n` +
+        `   2. Get your API key from the Moralis dashboard\n` +
+        `   3. Set the MORALIS_API_KEY environment variable\n` +
+        `   NFT features will only show cached data until a provider is configured.\n`);
+      
+      // Use fallback provider (will throw errors when called)
+      this.defaultProvider = this.providers[this.providers.length - 1];
+    } else {
+      this.defaultProvider = availableProvider;
+      console.log(`NFT Service initialized with provider: ${this.defaultProvider.name}`);
+    }
     
     // Start cache cleanup interval
     this.startCacheCleanup();
