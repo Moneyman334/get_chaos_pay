@@ -1,0 +1,46 @@
+workflows:
+  android-release:
+    name: Android Release Build
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    
+    environment:
+      groups:
+        - android_signing
+      vars:
+        CAPACITOR_ANDROID_GRADLE_BUILD_VERSION_CODE: $((BUILD_NUMBER))
+      node: 20
+    
+    scripts:
+      - name: Install npm dependencies
+        script: |
+          npm ci
+      
+      - name: Build React app
+        script: |
+          npm run build
+      
+      - name: Capacitor sync
+        script: |
+          npx cap sync android
+      
+      - name: Set Android version
+        script: |
+          cd android
+          BUILD_NUMBER=$(($(google-play get-latest-build-number --package-name "$PACKAGE_NAME" --tracks internal) + 1))
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $CM_ENV
+      
+      - name: Build Android App Bundle
+        script: |
+          cd android
+          ./gradlew bundleRelease
+    
+    artifacts:
+      - android/app/build/outputs/bundle/release/app-release.aab
+      - android/app/build/outputs/apk/release/app-release.apk
+    
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
