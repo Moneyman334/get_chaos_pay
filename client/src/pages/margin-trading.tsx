@@ -502,6 +502,32 @@ export default function MarginTradingPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
+                  {/* Leverage Slider */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between">
+                      <Label className="text-white">Preferred Leverage</Label>
+                      <span className="text-xl font-bold text-purple-400">
+                        {settings?.preferredLeverage || '10'}x
+                      </span>
+                    </div>
+                    <Slider
+                      value={[parseInt(settings?.preferredLeverage || '10')]}
+                      onValueChange={(val) => {
+                        updateSettingsMutation.mutate({
+                          preferredLeverage: String(val[0]),
+                        });
+                      }}
+                      min={1}
+                      max={parseInt(settings?.maxLeverage || '20')}
+                      step={1}
+                      className="w-full"
+                      data-testid="slider-leverage"
+                    />
+                    <p className="text-xs text-gray-400">
+                      Default leverage for new positions (max: {settings?.maxLeverage || '20'}x)
+                    </p>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-white">Auto Deleverage</Label>
