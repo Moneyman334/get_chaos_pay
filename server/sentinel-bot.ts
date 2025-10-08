@@ -113,6 +113,10 @@ export class SentinelBot extends EventEmitter {
   }
 
   private async executeTradingCycle() {
+    let criticalErrorCount = 0;
+    let successCount = 0;
+    const errors: string[] = [];
+
     for (const pair of this.config.tradingPairs) {
       try {
         const ticker = await this.client.getProductTicker(pair);
@@ -123,9 +127,33 @@ export class SentinelBot extends EventEmitter {
         }
 
         await this.checkExistingPositions(pair);
-      } catch (error) {
+        successCount++;
+      } catch (error: any) {
         console.error(`Error processing ${pair}:`, error);
+        
+        // Check if this is a critical API error (auth, rate limit, network)
+        const isCritical = 
+          error.response?.status === 401 || // Auth failed
+          error.response?.status === 403 || // Forbidden
+          error.response?.status === 429 || // Rate limited
+          error.code === 'ECONNREFUSED' ||  // Connection refused
+          error.code === 'ETIMEDOUT';       // Timeout
+        
+        if (isCritical) {
+          criticalErrorCount++;
+          errors.push(`${pair}: ${error.message || error}`);
+        }
       }
+    }
+
+    // If all pairs failed with critical errors, throw to trigger error counter
+    if (criticalErrorCount > 0 && successCount === 0) {
+      throw new Error(`Trading cycle failed for all pairs: ${errors.join(', ')}`);
+    }
+
+    // If more than half the pairs failed with critical errors, throw
+    if (criticalErrorCount > this.config.tradingPairs.length / 2) {
+      throw new Error(`Trading cycle: ${criticalErrorCount}/${this.config.tradingPairs.length} pairs failed with critical errors`);
     }
   }
 

@@ -22,6 +22,7 @@ import {
 } from "@/lib/tokenDetection";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { parseWeb3Error, getErrorAction } from "@/lib/web3-error-handler";
 
 interface Web3State {
   isConnected: boolean;
@@ -202,24 +203,23 @@ export function useWeb3() {
     } catch (error: any) {
       console.error("Failed to connect wallet:", error);
       
-      // Retry logic only for transient errors (not user rejection)
+      const errorInfo = parseWeb3Error(error);
+      
+      // Retry logic only for pending request errors
       if (retryCount < 2 && error.code === -32002) {
-        // -32002 means request is already pending, retry makes sense
         toast({
-          title: "Retrying connection",
+          title: errorInfo.title,
           description: "Please check your wallet for pending requests...",
         });
         setTimeout(() => connectWallet(retryCount + 1), 1000);
         return;
       }
       
-      // User rejection (4001) or other errors - show immediately without retry
+      // Show user-friendly error message
       toast({
-        title: "Connection failed",
-        description: error.code === 4001 
-          ? "Connection request was rejected" 
-          : error.message || "Failed to connect wallet",
-        variant: "destructive",
+        title: errorInfo.title,
+        description: `${errorInfo.description}. ${getErrorAction(errorInfo)}`,
+        variant: errorInfo.isUserRejection ? "default" : "destructive",
       });
     }
   }, [checkConnection, toast, isMobile]);
@@ -306,9 +306,10 @@ export function useWeb3() {
       }
     } catch (error: any) {
       console.error("Failed to switch network:", error);
+      const errorInfo = parseWeb3Error(error);
       toast({
-        title: "Network switch failed",
-        description: error.message || "Failed to switch network",
+        title: errorInfo.title,
+        description: `${errorInfo.description}. ${getErrorAction(errorInfo)}`,
         variant: "destructive",
       });
     }
@@ -693,9 +694,10 @@ export function useWeb3() {
       return customToken;
     } catch (error: any) {
       console.error('Failed to add custom token:', error);
+      const errorInfo = parseWeb3Error(error);
       toast({
-        title: "Failed to add token",
-        description: error.message || "Failed to add custom token",
+        title: errorInfo.title,
+        description: `${errorInfo.description}. ${getErrorAction(errorInfo)}`,
         variant: "destructive",
       });
       throw error;
@@ -738,9 +740,10 @@ export function useWeb3() {
     },
     onError: (error: any) => {
       console.error('Token transfer failed:', error);
+      const errorInfo = parseWeb3Error(error);
       toast({
-        title: "Transfer failed",
-        description: error.message || "Failed to transfer token",
+        title: errorInfo.title,
+        description: `${errorInfo.description}. ${getErrorAction(errorInfo)}`,
         variant: "destructive",
       });
     }
@@ -773,9 +776,10 @@ export function useWeb3() {
     },
     onError: (error: any) => {
       console.error('Token approval failed:', error);
+      const errorInfo = parseWeb3Error(error);
       toast({
-        title: "Approval failed",
-        description: error.message || "Failed to approve token",
+        title: errorInfo.title,
+        description: `${errorInfo.description}. ${getErrorAction(errorInfo)}`,
         variant: "destructive",
       });
     }
