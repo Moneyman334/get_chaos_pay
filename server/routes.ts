@@ -6169,20 +6169,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 3. Trading bot performance fees (assume 10% of profits)
       const tradingResult = await dbClient
-        .select({
-          totalProfit: sql<string>`COALESCE(SUM(CAST(profit AS NUMERIC)), 0)`,
-          count: sql<string>`COALESCE(COUNT(*), 0)`
-        })
-        .from(botTrades as any)
-        .where(and(
-          eq((botTrades as any).status, 'filled'),
-          gte((botTrades as any).createdAt, startDate),
-          sql`CAST(${(botTrades as any).profit} AS NUMERIC) > 0`
-        ));
+        .execute(sql`
+          SELECT 
+            COALESCE(SUM(CAST(profit AS NUMERIC)), 0) as total_profit,
+            COALESCE(COUNT(*), 0) as count
+          FROM bot_trades
+          WHERE status = 'filled'
+          AND created_at >= ${startDate.toISOString()}
+          AND CAST(profit AS NUMERIC) > 0
+        `);
       
-      const totalTradingProfit = parseFloat(tradingResult[0]?.totalProfit || '0');
+      const totalTradingProfit = parseFloat((tradingResult.rows[0]?.total_profit as any) || '0');
       const tradingFees = totalTradingProfit * 0.10; // 10% performance fee
-      const profitableTradesCount = parseInt(tradingResult[0]?.count || '0');
+      const profitableTradesCount = parseInt((tradingResult.rows[0]?.count as any) || '0');
 
       // 4. Subscription revenue (from subscription_billings)
       const subscriptionResult = await dbClient
