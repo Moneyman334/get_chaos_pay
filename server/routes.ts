@@ -24,7 +24,9 @@ import {
   insertRecentlyViewedSchema,
   insertTraderProfileSchema,
   insertCopyRelationshipSchema,
-  insertCopyTradeSchema
+  insertCopyTradeSchema,
+  insertMarginPositionSchema,
+  insertLeverageSettingSchema
 } from "@shared/schema";
 import { nftService } from "./nft";
 import rateLimit from "express-rate-limit";
@@ -3266,6 +3268,271 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Failed to execute copy trade:", error);
       res.status(400).json({ error: error.message || "Failed to execute copy trade" });
+    }
+  });
+
+  // ================================
+  // Margin/Futures Trading Routes
+  // ================================
+  
+  // Get user's margin positions
+  app.get("/api/margin/positions", tradingRateLimit, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const status = req.query.status as string | undefined;
+      const positions = await storage.getUserMarginPositions(userId, status);
+      res.json(positions);
+    } catch (error) {
+      console.error("Failed to fetch margin positions:", error);
+      res.status(500).json({ error: "Failed to fetch margin positions" });
+    }
+  });
+  
+  // Get positions by trading pair
+  app.get("/api/margin/positions/pair/:pair", tradingRateLimit, async (req, res) => {
+    try {
+      const { pair } = req.params;
+      const status = req.query.status as string | undefined;
+      const positions = await storage.getMarginPositionsByPair(pair, status);
+      res.json(positions);
+    } catch (error) {
+      console.error("Failed to fetch positions by pair:", error);
+      res.status(500).json({ error: "Failed to fetch positions by pair" });
+    }
+  });
+  
+  // Open new margin position
+  app.post("/api/margin/positions/open", tradingRateLimit, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const positionData = insertMarginPositionSchema.parse({
+        ...req.body,
+        userId
+      });
+      
+      // Get user's leverage settings
+      const settings = await storage.getUserLeverageSettings(userId);
+      const maxLeverage = parseInt(settings?.maxLeverage || '20');
+      const requestedLeverage = parseInt(positionData.leverage);
+      
+      if (requestedLeverage > maxLeverage) {
+        return res.status(400).json({ 
+          error: `Leverage exceeds maximum allowed (${maxLeverage}x)` 
+        });
+      }
+      
+      const position = await storage.createMarginPosition(positionData);
+      res.json(position);
+    } catch (error: any) {
+      console.error("Failed to open margin position:", error);
+      res.status(400).json({ error: error.message || "Failed to open margin position" });
+    }
+  });
+  
+  // Update margin position (update current price, PnL, etc.)
+  app.patch("/api/margin/positions/:id", tradingRateLimit, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      // Verify position ownership
+      const position = await storage.getMarginPosition(id);
+      if (!position) {
+        return res.status(404).json({ error: "Position not found" });
+      }
+      
+      if (position.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      const updates = req.body;
+      const updated = await storage.updateMarginPosition(id, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update margin position:", error);
+      res.status(500).json({ error: "Failed to update margin position" });
+    }
+  });
+  
+  // Close margin position
+  app.post("/api/margin/positions/:id/close", tradingRateLimit, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { closePrice, realizedPnl } = req.body;
+      const userId = req.session?.userId;
+      
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      // Verify position ownership
+      const position = await storage.getMarginPosition(id);
+      if (!position) {
+        return res.status(404).json({ error: "Position not found" });
+      }
+      
+      if (position.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      if (position.status === 'closed' || position.status === 'liquidated') {
+        return res.status(400).json({ error: "Position already closed" });
+      }
+      
+      const closed = await storage.closeMarginPosition(id, closePrice, realizedPnl);
+      res.json(closed);
+    } catch (error) {
+      console.error("Failed to close margin position:", error);
+      res.status(500).json({ error: "Failed to close margin position" });
+    }
+  });
+  
+  // Get user's leverage settings
+  app.get("/api/margin/settings", tradingRateLimit, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const settings = await storage.getUserLeverageSettings(userId);
+      
+      // Return default settings if none exist
+      if (!settings) {
+        return res.json({
+          userId,
+          maxLeverage: '20',
+          preferredLeverage: '10',
+          marginMode: 'isolated',
+          riskLevel: 'medium',
+          autoDeleverageEnabled: 'true',
+          liquidationWarningEnabled: 'true'
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to fetch leverage settings:", error);
+      res.status(500).json({ error: "Failed to fetch leverage settings" });
+    }
+  });
+  
+  // Update leverage settings
+  app.post("/api/margin/settings", tradingRateLimit, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const settingsData = insertLeverageSettingSchema.parse({
+        ...req.body,
+        userId
+      });
+      
+      const settings = await storage.createOrUpdateLeverageSettings(settingsData);
+      res.json(settings);
+    } catch (error: any) {
+      console.error("Failed to update leverage settings:", error);
+      res.status(400).json({ error: error.message || "Failed to update leverage settings" });
+    }
+  });
+  
+  // Get user's liquidation history
+  app.get("/api/margin/liquidations", tradingRateLimit, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const limit = parseInt(req.query.limit as string) || 50;
+      const history = await storage.getLiquidationHistory(userId, limit);
+      const totalLiquidations = await storage.getTotalLiquidations(userId);
+      
+      res.json({
+        history,
+        total: totalLiquidations
+      });
+    } catch (error) {
+      console.error("Failed to fetch liquidation history:", error);
+      res.status(500).json({ error: "Failed to fetch liquidation history" });
+    }
+  });
+  
+  // Liquidate position (called by risk engine or admin)
+  app.post("/api/margin/positions/:id/liquidate", tradingRateLimit, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { liquidationType } = req.body;
+      
+      const position = await storage.getMarginPosition(id);
+      if (!position) {
+        return res.status(404).json({ error: "Position not found" });
+      }
+      
+      if (position.status === 'closed' || position.status === 'liquidated') {
+        return res.status(400).json({ error: "Position already closed" });
+      }
+      
+      // Calculate loss amount
+      const entryPrice = parseFloat(position.entryPrice);
+      const liquidationPrice = parseFloat(position.liquidationPrice);
+      const positionSize = parseFloat(position.positionSize);
+      const collateral = parseFloat(position.collateral);
+      
+      let lossAmount = '0';
+      let remainingCollateral = '0';
+      
+      if (position.side === 'long') {
+        lossAmount = String((entryPrice - liquidationPrice) * positionSize);
+        remainingCollateral = String(Math.max(0, collateral - parseFloat(lossAmount)));
+      } else {
+        lossAmount = String((liquidationPrice - entryPrice) * positionSize);
+        remainingCollateral = String(Math.max(0, collateral - parseFloat(lossAmount)));
+      }
+      
+      // Create liquidation record
+      const liquidation = await storage.createLiquidationRecord({
+        positionId: id,
+        userId: position.userId,
+        tradingPair: position.tradingPair,
+        side: position.side,
+        leverage: position.leverage,
+        entryPrice: position.entryPrice,
+        liquidationPrice: position.liquidationPrice,
+        positionSize: position.positionSize,
+        lossAmount,
+        remainingCollateral,
+        liquidationType: liquidationType || 'auto'
+      });
+      
+      // Update position status
+      await storage.updateMarginPosition(id, {
+        status: 'liquidated',
+        closedAt: new Date(),
+        realizedPnl: `-${lossAmount}`
+      });
+      
+      res.json({
+        liquidation,
+        message: "Position liquidated"
+      });
+    } catch (error) {
+      console.error("Failed to liquidate position:", error);
+      res.status(500).json({ error: "Failed to liquidate position" });
     }
   });
 
