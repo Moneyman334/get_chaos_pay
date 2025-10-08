@@ -563,6 +563,118 @@ export type BotActiveStrategy = typeof botActiveStrategies.$inferSelect;
 export type InsertBotTrade = z.infer<typeof insertBotTradeSchema>;
 export type BotTrade = typeof botTrades.$inferSelect;
 
+// Copy Trading System - Viral Growth Engine
+export const traderProfiles = pgTable("trader_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  displayName: text("display_name").notNull(),
+  bio: text("bio"),
+  avatarUrl: text("avatar_url"),
+  isPublic: text("is_public").notNull().default("false"), // Can others copy?
+  isVerified: text("is_verified").notNull().default("false"), // Verified trader badge
+  totalReturn: text("total_return").notNull().default("0"), // Lifetime ROI %
+  totalProfit: text("total_profit").notNull().default("0"), // Total profit in USD
+  totalTrades: text("total_trades").notNull().default("0"),
+  winRate: text("win_rate").notNull().default("0"), // Win percentage
+  avgHoldTime: text("avg_hold_time").default("0"), // Average trade duration in hours
+  riskScore: text("risk_score").notNull().default("5"), // 1-10 (1=conservative, 10=aggressive)
+  totalFollowers: text("total_followers").notNull().default("0"),
+  totalCopiedVolume: text("total_copied_volume").notNull().default("0"), // Total $ copied
+  followerEarnings: text("follower_earnings").notNull().default("0"), // Earnings followers made
+  revenueShare: text("revenue_share").notNull().default("0"), // Total earned from followers (10%)
+  featuredStrategy: text("featured_strategy"), // Primary strategy name
+  tradingPairs: text("trading_pairs").array().default(sql`ARRAY[]::text[]`), // Preferred pairs
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  lastTradeAt: timestamp("last_trade_at"),
+}, (table) => ({
+  userIdx: index("trader_profiles_user_idx").on(table.userId),
+  publicIdx: index("trader_profiles_public_idx").on(table.isPublic),
+  verifiedIdx: index("trader_profiles_verified_idx").on(table.isVerified),
+  returnIdx: index("trader_profiles_return_idx").on(table.totalReturn),
+  followersIdx: index("trader_profiles_followers_idx").on(table.totalFollowers),
+  updatedAtIdx: index("trader_profiles_updated_at_idx").on(table.updatedAt),
+}));
+
+export const copyRelationships = pgTable("copy_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  followerId: varchar("follower_id").notNull().references(() => users.id),
+  traderId: varchar("trader_id").notNull().references(() => users.id),
+  traderProfileId: varchar("trader_profile_id").notNull().references(() => traderProfiles.id),
+  status: text("status").notNull().default("active"), // active, paused, stopped
+  copyAmount: text("copy_amount").notNull(), // USD amount to allocate per trade
+  copyPercentage: text("copy_percentage").default("100"), // % of trader's position to copy (1-100)
+  maxDailyCopies: text("max_daily_copies").default("10"), // Limit copies per day
+  copiedTrades: text("copied_trades").notNull().default("0"),
+  totalProfit: text("total_profit").notNull().default("0"), // Follower's profit from this trader
+  totalVolume: text("total_volume").notNull().default("0"), // Total volume copied
+  revenueShared: text("revenue_shared").notNull().default("0"), // Amount paid to trader (10%)
+  startedAt: timestamp("started_at").defaultNow(),
+  pausedAt: timestamp("paused_at"),
+  stoppedAt: timestamp("stopped_at"),
+  lastCopyAt: timestamp("last_copy_at"),
+}, (table) => ({
+  followerIdx: index("copy_relationships_follower_idx").on(table.followerId),
+  traderIdx: index("copy_relationships_trader_idx").on(table.traderId),
+  statusIdx: index("copy_relationships_status_idx").on(table.status),
+  profitIdx: index("copy_relationships_profit_idx").on(table.totalProfit),
+  uniqueCopy: index("copy_relationships_unique").on(table.followerId, table.traderId),
+}));
+
+export const copyTrades = pgTable("copy_trades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  relationshipId: varchar("relationship_id").notNull().references(() => copyRelationships.id),
+  followerId: varchar("follower_id").notNull().references(() => users.id),
+  traderId: varchar("trader_id").notNull().references(() => users.id),
+  originalTradeId: varchar("original_trade_id").notNull().references(() => botTrades.id), // Trader's original trade
+  followerTradeId: varchar("follower_trade_id").references(() => botTrades.id), // Follower's executed trade
+  tradingPair: text("trading_pair").notNull(),
+  side: text("side").notNull(), // buy, sell
+  traderAmount: text("trader_amount").notNull(), // Trader's position size
+  followerAmount: text("follower_amount").notNull(), // Follower's position size (scaled)
+  traderPrice: text("trader_price").notNull(),
+  followerPrice: text("follower_price"), // May differ slightly due to execution time
+  followerProfit: text("follower_profit").default("0"), // Follower's P&L
+  traderShare: text("trader_share").default("0"), // 10% of follower profit to trader
+  platformFee: text("platform_fee").default("0"), // 5% platform fee
+  copyPercentage: text("copy_percentage").notNull(), // % copied (for reference)
+  status: text("status").notNull().default("pending"), // pending, executed, failed
+  failureReason: text("failure_reason"),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  relationshipIdx: index("copy_trades_relationship_idx").on(table.relationshipId),
+  followerIdx: index("copy_trades_follower_idx").on(table.followerId),
+  traderIdx: index("copy_trades_trader_idx").on(table.traderId),
+  originalIdx: index("copy_trades_original_idx").on(table.originalTradeId),
+  statusIdx: index("copy_trades_status_idx").on(table.status),
+  createdAtIdx: index("copy_trades_created_at_idx").on(table.createdAt),
+}));
+
+export const insertTraderProfileSchema = createInsertSchema(traderProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastTradeAt: true,
+});
+
+export const insertCopyRelationshipSchema = createInsertSchema(copyRelationships).omit({
+  id: true,
+  startedAt: true,
+});
+
+export const insertCopyTradeSchema = createInsertSchema(copyTrades).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTraderProfile = z.infer<typeof insertTraderProfileSchema>;
+export type TraderProfile = typeof traderProfiles.$inferSelect;
+export type InsertCopyRelationship = z.infer<typeof insertCopyRelationshipSchema>;
+export type CopyRelationship = typeof copyRelationships.$inferSelect;
+export type InsertCopyTrade = z.infer<typeof insertCopyTradeSchema>;
+export type CopyTrade = typeof copyTrades.$inferSelect;
+
 // House Vaults - Player-Owned Liquidity System
 export const houseVaults = pgTable("house_vaults", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

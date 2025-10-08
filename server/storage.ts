@@ -49,6 +49,15 @@ import {
   botUserConfigs,
   botActiveStrategies,
   botTrades,
+  traderProfiles,
+  copyRelationships,
+  copyTrades,
+  type TraderProfile,
+  type InsertTraderProfile,
+  type CopyRelationship,
+  type InsertCopyRelationship,
+  type CopyTrade,
+  type InsertCopyTrade,
   houseVaults,
   housePositions,
   houseDistributions,
@@ -355,6 +364,23 @@ export interface IStorage {
   // Bot Trade methods
   getUserBotTrades(userId: string, limit: number): Promise<any[]>;
   getStrategyTrades(activeStrategyId: string): Promise<any[]>;
+  
+  // Copy Trading methods
+  getTraderProfile(userId: string): Promise<TraderProfile | undefined>;
+  getTraderProfileById(id: string): Promise<TraderProfile | undefined>;
+  getAllPublicTraders(filters?: { sortBy?: 'totalReturn' | 'winRate' | 'totalFollowers'; limit?: number }): Promise<TraderProfile[]>;
+  createOrUpdateTraderProfile(profile: InsertTraderProfile): Promise<TraderProfile>;
+  updateTraderStats(userId: string, stats: Partial<InsertTraderProfile>): Promise<TraderProfile | undefined>;
+  getCopyRelationship(followerId: string, traderId: string): Promise<CopyRelationship | undefined>;
+  getUserCopyRelationships(userId: string): Promise<CopyRelationship[]>; // As follower
+  getTraderFollowers(traderId: string): Promise<CopyRelationship[]>; // As trader
+  createCopyRelationship(relationship: InsertCopyRelationship): Promise<CopyRelationship>;
+  updateCopyRelationship(id: string, updates: Partial<InsertCopyRelationship>): Promise<CopyRelationship | undefined>;
+  stopCopyRelationship(id: string): Promise<void>;
+  getCopyTrade(id: string): Promise<CopyTrade | undefined>;
+  getCopyTradesByRelationship(relationshipId: string, limit?: number): Promise<CopyTrade[]>;
+  createCopyTrade(copyTrade: InsertCopyTrade): Promise<CopyTrade>;
+  updateCopyTrade(id: string, updates: Partial<InsertCopyTrade>): Promise<CopyTrade | undefined>;
   
   // House Vault methods
   getAllHouseVaults(): Promise<HouseVault[]>;
