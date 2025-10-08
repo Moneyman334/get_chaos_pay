@@ -6154,7 +6154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 2. Marketplace fees (assume 2% fee on sales)
       const marketplaceResult = await dbClient
         .select({
-          total: sql<string>`COALESCE(SUM(CAST(price AS NUMERIC)), 0)`,
+          total: sql<string>`COALESCE(SUM(CAST(price_eth AS NUMERIC)), 0)`,
           count: sql<string>`COALESCE(COUNT(*), 0)`
         })
         .from(marketplaceListings)
