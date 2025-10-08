@@ -55,7 +55,12 @@ import {
   preOrders,
   recentlyViewed,
   products,
-  securityAlerts
+  securityAlerts,
+  paymentWebhooks,
+  payments,
+  giftCards,
+  invoices,
+  nftReceipts
 } from "@shared/schema";
 import { eq, and, sql, desc, lte, gte, or, isNull } from "drizzle-orm";
 import { SecurityFortress } from "./security-fortress";
@@ -576,13 +581,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (type) {
-        const isOutgoing = tx => tx.fromAddress.toLowerCase() === address.toLowerCase();
+        const isOutgoing = (tx: any) => tx.fromAddress.toLowerCase() === address.toLowerCase();
         filteredTransactions = filteredTransactions.filter(tx => {
+          const metadata = tx.metadata as any;
           switch (type) {
             case 'sent': return isOutgoing(tx);
             case 'received': return !isOutgoing(tx);
-            case 'token_transfer': return tx.metadata?.tokenSymbol;
-            case 'contract_interaction': return tx.metadata?.contractAddress;
+            case 'token_transfer': return metadata?.tokenSymbol;
+            case 'contract_interaction': return metadata?.contractAddress;
             default: return true;
           }
         });
@@ -590,12 +596,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (search) {
         const searchTerm = search.toLowerCase();
-        filteredTransactions = filteredTransactions.filter(tx =>
-          tx.hash.toLowerCase().includes(searchTerm) ||
-          tx.fromAddress.toLowerCase().includes(searchTerm) ||
-          tx.toAddress.toLowerCase().includes(searchTerm) ||
-          tx.metadata?.tokenSymbol?.toLowerCase().includes(searchTerm)
-        );
+        filteredTransactions = filteredTransactions.filter(tx => {
+          const metadata = tx.metadata as any;
+          return tx.hash.toLowerCase().includes(searchTerm) ||
+            tx.fromAddress.toLowerCase().includes(searchTerm) ||
+            tx.toAddress.toLowerCase().includes(searchTerm) ||
+            metadata?.tokenSymbol?.toLowerCase().includes(searchTerm);
+        });
       }
       
       if (startDate) {
@@ -655,7 +662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pending: transactions.filter(tx => tx.status === 'pending').length,
         confirmed: transactions.filter(tx => tx.status === 'confirmed').length,
         failed: transactions.filter(tx => tx.status === 'failed').length,
-        networks: [...new Set(transactions.map(tx => tx.network))],
+        networks: Array.from(new Set(transactions.map(tx => tx.network))),
         totalVolume: transactions.reduce((sum, tx) => {
           const amount = parseFloat(tx.amount || '0');
           return sum + (isNaN(amount) ? 0 : amount);
@@ -1664,7 +1671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate chain IDs
       const validChains = chains.filter(chain => 
         typeof chain === 'string' && /^0x[a-fA-F0-9]+$/.test(chain)
-      );
+      ) as string[];
       
       if (validChains.length === 0) {
         return res.status(400).json({ 
@@ -1679,8 +1686,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         limit,
         collection,
         search,
-        sortBy,
-        sortOrder
+        sortBy: sortBy as any,
+        sortOrder: sortOrder as any
       });
 
       res.json({
@@ -3923,7 +3930,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const data = schema.parse(req.body);
       
-      const newDiscount = await dbClient.insert(discountCodes).values(data).returning();
+      const newDiscount = await dbClient.insert(discountCodes).values({
+        ...data,
+        validUntil: data.validUntil ? new Date(data.validUntil) : null,
+      } as any).returning();
       res.json(newDiscount[0]);
     } catch (error) {
       console.error("Failed to create discount code:", error);
@@ -3974,7 +3984,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...data,
         code,
         currentBalance: data.initialValue,
-      }).returning();
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      } as any).returning();
       
       res.json(card[0]);
     } catch (error) {
@@ -4350,7 +4361,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const invoice = await dbClient.insert(invoices).values({
         ...data,
         invoiceNumber,
-      }).returning();
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      } as any).returning();
       
       res.json(invoice[0]);
     } catch (error) {
@@ -4411,7 +4423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const data = schema.parse(req.body);
       
-      const receipt = await dbClient.insert(nftReceipts).values(data).returning();
+      const receipt = await dbClient.insert(nftReceipts).values(data as any).returning();
       res.json(receipt[0]);
     } catch (error) {
       console.error("Failed to create NFT receipt:", error);
@@ -5251,11 +5263,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const transactions = await storage.getTransactionsByAddress(walletAddress);
         for (const tx of transactions.slice(0, 5)) {
+          const txMeta = tx.metadata as any;
           activities.push({
             id: tx.hash,
             type: 'Transaction',
-            description: `${tx.type} transaction on ${tx.chain}`,
-            amount: tx.value ? `$${parseFloat(tx.value).toFixed(2)}` : undefined,
+            description: `${txMeta?.type || 'Transfer'} transaction on ${tx.network}`,
+            amount: tx.amount ? `$${parseFloat(tx.amount).toFixed(2)}` : undefined,
             timestamp: tx.timestamp,
             category: 'Blockchain'
           });
@@ -5464,7 +5477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const data = metricSchema.parse(req.body);
-      const metric = await storage.createCampaignMetric({ ...data, campaignId: id });
+      const metric = await storage.createCampaignMetric({ ...data, campaignId: id, date: new Date(data.date) });
       res.json(metric);
     } catch (error) {
       console.error("Failed to create metric:", error);
@@ -5498,7 +5511,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const data = budgetSchema.parse(req.body);
-      const budget = await storage.createMarketingBudget({ ...data, campaignId: id });
+      const budget = await storage.createMarketingBudget({ 
+        ...data, 
+        campaignId: id,
+        startDate: new Date(data.startDate),
+        endDate: data.endDate ? new Date(data.endDate) : null
+      });
       res.json(budget);
     } catch (error) {
       console.error("Failed to create budget:", error);
@@ -5508,9 +5526,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== SECURITY / WALLET ROUTES =====
   
-  // In-memory storage for security policies and transaction limits (non-persistent features)
+  // In-memory storage for security policies, transaction limits, and alerts (non-persistent features)
   const securityPolicies = new Map<string, any>();
   const transactionLimits = new Map<string, any>();
+  const securityAlertsMap = new Map<string, any[]>();
   
   // Get wallet security policy
   app.get("/api/security/policy/:walletAddress", async (req, res) => {
@@ -5565,9 +5584,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date(),
       };
       
-      const alerts = securityAlerts.get(walletAddress.toLowerCase()) || [];
+      const alerts = securityAlertsMap.get(walletAddress.toLowerCase()) || [];
       alerts.unshift(alert);
-      securityAlerts.set(walletAddress.toLowerCase(), alerts.slice(0, 50)); // Keep last 50
+      securityAlertsMap.set(walletAddress.toLowerCase(), alerts.slice(0, 50)); // Keep last 50
       
       res.json(updated);
     } catch (error) {
@@ -5797,8 +5816,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Store alerts
       if (alerts.length > 0) {
-        const existingAlerts = securityAlerts.get(fromKey) || [];
-        securityAlerts.set(fromKey, [...alerts, ...existingAlerts].slice(0, 100)); // Keep last 100
+        const existingAlerts = securityAlertsMap.get(fromKey) || [];
+        securityAlertsMap.set(fromKey, [...alerts, ...existingAlerts].slice(0, 100)); // Keep last 100
       }
       
       res.json({
@@ -5829,7 +5848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/security/alerts/:walletAddress", async (req, res) => {
     try {
       const { walletAddress } = req.params;
-      const alerts = securityAlerts.get(walletAddress.toLowerCase()) || [];
+      const alerts = securityAlertsMap.get(walletAddress.toLowerCase()) || [];
       res.json(alerts);
     } catch (error) {
       console.error("Failed to fetch security alerts:", error);
@@ -5841,7 +5860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/security/alerts/:walletAddress/:alertId/read", async (req, res) => {
     try {
       const { walletAddress, alertId } = req.params;
-      const alerts = securityAlerts.get(walletAddress.toLowerCase()) || [];
+      const alerts = securityAlertsMap.get(walletAddress.toLowerCase()) || [];
       const alert = alerts.find(a => a.id === alertId);
       if (alert) {
         alert.isRead = true;
@@ -5881,9 +5900,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date(),
       };
       
-      const alerts = securityAlerts.get(key) || [];
+      const alerts = securityAlertsMap.get(key) || [];
       alerts.unshift(alert);
-      securityAlerts.set(key, alerts.slice(0, 100));
+      securityAlertsMap.set(key, alerts.slice(0, 100));
       
       res.json({ success: true, lockdownEnabled: enabled });
     } catch (error) {
@@ -5948,8 +5967,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Real order book from platform's open orders
       const pairSymbol = pair.split('-')[0];
-      const currentPrice = (await import('./price-service')).getPrice(pairSymbol);
-      const basePrice = currentPrice.usd;
+      const currentPrice = (await import('./price-service')).getCryptoPrice(pairSymbol);
+      const basePrice = currentPrice?.usd || 0;
       
       // Aggregate real open orders from the platform
       const allOrders = Array.from(openOrders.values()).filter(order => order.pair === pair);
@@ -6154,11 +6173,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalProfit: sql<string>`COALESCE(SUM(CAST(profit AS NUMERIC)), 0)`,
           count: sql<string>`COALESCE(COUNT(*), 0)`
         })
-        .from(botTrades)
+        .from(botTrades as any)
         .where(and(
-          eq(botTrades.status, 'filled'),
-          gte(botTrades.createdAt, startDate),
-          sql`CAST(${botTrades.profit} AS NUMERIC) > 0`
+          eq((botTrades as any).status, 'filled'),
+          gte((botTrades as any).createdAt, startDate),
+          sql`CAST(${(botTrades as any).profit} AS NUMERIC) > 0`
         ));
       
       const totalTradingProfit = parseFloat(tradingResult[0]?.totalProfit || '0');
@@ -6176,8 +6195,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           AND created_at >= ${startDate.toISOString()}
         `);
       
-      const subscriptionRevenue = parseFloat(subscriptionResult.rows[0]?.total || '0');
-      const subscriptionCount = parseInt(subscriptionResult.rows[0]?.count || '0');
+      const subscriptionRevenue = parseFloat((subscriptionResult.rows[0]?.total as any) || '0');
+      const subscriptionCount = parseInt((subscriptionResult.rows[0]?.count as any) || '0');
 
       // 5. Affiliate commissions (money we save, not paid out)
       const affiliateResult = await dbClient
@@ -6190,8 +6209,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           AND created_at >= ${startDate.toISOString()}
         `);
       
-      const pendingAffiliateCosts = parseFloat(affiliateResult.rows[0]?.total || '0');
-      const affiliateReferralCount = parseInt(affiliateResult.rows[0]?.count || '0');
+      const pendingAffiliateCosts = parseFloat((affiliateResult.rows[0]?.total as any) || '0');
+      const affiliateReferralCount = parseInt((affiliateResult.rows[0]?.count as any) || '0');
 
       // 6. Flash sales revenue
       const flashSalesResult = await dbClient
@@ -6334,13 +6353,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get trading bot metrics
       const [totalTrades, botStats] = await Promise.all([
         dbClient.select({ count: sql<number>`count(*)::int` })
-          .from(botTrades),
+          .from(botTrades as any),
         dbClient.select({
           totalPnL: sql<string>`COALESCE(SUM(CAST(profit AS NUMERIC)), 0)::text`,
           winningTrades: sql<number>`COUNT(CASE WHEN CAST(profit AS NUMERIC) > 0 THEN 1 ELSE NULL END)::int`,
           totalCount: sql<number>`COUNT(*)::int`
         })
-          .from(botTrades)
+          .from(botTrades as any)
       ]);
 
       const winRate = botStats[0]?.totalCount > 0 
@@ -6818,7 +6837,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const data = progressSchema.parse(req.body);
-      const achievement = await storage.updatePlatformUserAchievement(data);
+      const achievement = await storage.updatePlatformUserAchievement({
+        ...data,
+        isCompleted: data.isCompleted ? 'true' : 'false'
+      });
       res.json(achievement);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -6880,7 +6902,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const data = stakeSchema.parse(req.body);
-      const stake = await storage.createCodexUserStake(data);
+      const stake = await storage.createCodexUserStake({
+        ...data,
+        unlockDate: new Date(data.unlockDate)
+      });
       res.status(201).json(stake);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -7752,8 +7777,7 @@ contract ${defaultSymbol} is ERC721, Ownable {
         
         // Update position with new rewards
         await storage.updateYieldFarmPosition(position.id, {
-          rewards: totalRewards.toString(),
-          lastRewardUpdate: now
+          rewards: totalRewards.toString()
         });
         
         return {
