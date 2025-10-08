@@ -2555,33 +2555,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ipnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
       const receivedSignature = req.headers['x-nowpayments-sig'] as string;
       
-      if (ipnSecret && receivedSignature) {
-        const crypto = await import('crypto');
-        const hmac = crypto.createHmac('sha512', ipnSecret);
-        hmac.update(JSON.stringify(req.body));
-        const calculatedSignature = hmac.digest('hex');
-        
-        if (calculatedSignature !== receivedSignature) {
-          console.error('[NOWPayments] Invalid webhook signature');
-          return res.status(401).json({ error: 'Invalid signature' });
-        }
+      // 🔒 SECURITY: Always verify webhook signature - reject if missing or invalid
+      if (!ipnSecret) {
+        console.error('[NOWPayments] IPN Secret not configured - rejecting webhook');
+        return res.status(503).json({ error: 'Webhook verification not configured' });
+      }
+      
+      if (!receivedSignature) {
+        console.error('[NOWPayments] Missing webhook signature');
+        return res.status(401).json({ error: 'Missing signature' });
+      }
+      
+      const crypto = await import('crypto');
+      const hmac = crypto.createHmac('sha512', ipnSecret);
+      hmac.update(JSON.stringify(req.body));
+      const calculatedSignature = hmac.digest('hex');
+      
+      if (calculatedSignature !== receivedSignature) {
+        console.error('[NOWPayments] Invalid webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
       }
 
       const webhookData = req.body;
       console.log('[NOWPayments] Webhook received:', webhookData.payment_status);
 
-      await storage.createPaymentWebhook({
+      // 🔒 IDEMPOTENCY: Check if webhook already processed
+      const webhookId = `${webhookData.payment_id || webhookData.order_id}_${webhookData.payment_status}`;
+      const existingWebhooks = await dbClient
+        .select()
+        .from(paymentWebhooks)
+        .where(
+          and(
+            eq(paymentWebhooks.provider, 'nowpayments'),
+            sql`${paymentWebhooks.payload}->>'payment_id' = ${webhookData.payment_id || ''}`,
+            eq(paymentWebhooks.processed, 'true')
+          )
+        )
+        .limit(1);
+      
+      if (existingWebhooks.length > 0) {
+        console.log('[NOWPayments] Webhook already processed - idempotent response');
+        return res.json({ success: true, message: 'Already processed' });
+      }
+
+      // Store webhook for audit trail
+      const [webhookRecord] = await dbClient.insert(paymentWebhooks).values({
         provider: 'nowpayments',
         eventType: webhookData.payment_status || 'unknown',
         payload: webhookData as any,
         processed: 'false'
-      });
+      }).returning();
 
       if (webhookData.payment_status === 'finished' || webhookData.payment_status === 'confirmed') {
         const payments = await storage.getPaymentsByOrder(webhookData.order_id);
         
         if (payments && payments.length > 0) {
           const payment = payments[0];
+          
+          // Double-check payment not already confirmed (additional idempotency check)
+          if (payment.status === 'confirmed') {
+            console.log('[NOWPayments] Payment already confirmed for order:', webhookData.order_id);
+            await dbClient.update(paymentWebhooks)
+              .set({ processed: 'true' })
+              .where(eq(paymentWebhooks.id, webhookRecord.id));
+            return res.json({ success: true, message: 'Already confirmed' });
+          }
           
           await storage.updatePayment(payment.id, {
             status: 'confirmed',
@@ -2596,6 +2634,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('[NOWPayments] Payment confirmed for order:', webhookData.order_id);
         }
       }
+
+      // Mark webhook as processed
+      await dbClient.update(paymentWebhooks)
+        .set({ processed: 'true' })
+        .where(eq(paymentWebhooks.id, webhookRecord.id));
 
       res.json({ success: true });
     } catch (error) {
