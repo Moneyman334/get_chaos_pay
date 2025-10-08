@@ -2195,24 +2195,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const orderData = orderSchema.parse(req.body);
       
+      // Map chain ID to native token symbol
+      const chainToNativeToken: Record<number, string> = {
+        1: 'ETH',        // Ethereum
+        137: 'MATIC',    // Polygon
+        56: 'BNB',       // BSC
+        43114: 'AVAX',   // Avalanche
+        42161: 'ETH',    // Arbitrum
+        10: 'ETH',       // Optimism
+        8453: 'ETH',     // Base
+        250: 'FTM',      // Fantom
+        42220: 'CELO',   // Celo
+        1666600000: 'ONE', // Harmony
+        25: 'CRO',       // Cronos
+      };
+      
       // Server-side expected crypto amount calculation for MetaMask payments
       let expectedCryptoAmount = undefined;
       let expectedChainId = undefined;
       let fxRateLocked = undefined;
+      let nativeToken = 'ETH';
       
       if (orderData.paymentMethod === 'metamask' && orderData.chainId) {
-        // Use real-time ETH price from CoinGecko
-        const ethPrice = getCryptoPrice('ETH');
-        if (!ethPrice) {
-          return res.status(500).json({ error: "Unable to fetch ETH price" });
+        nativeToken = chainToNativeToken[orderData.chainId] || 'ETH';
+        
+        // Use real-time native token price from CoinGecko
+        const tokenPrice = getCryptoPrice(nativeToken);
+        if (!tokenPrice) {
+          return res.status(500).json({ 
+            error: `Unable to fetch ${nativeToken} price. Please try again.` 
+          });
         }
         
-        const ETH_USD_RATE = ethPrice.usd;
-        fxRateLocked = ETH_USD_RATE.toString();
-        expectedCryptoAmount = convertUsdToCrypto(parseFloat(orderData.totalAmount), 'ETH');
+        const TOKEN_USD_RATE = tokenPrice.usd;
+        fxRateLocked = TOKEN_USD_RATE.toString();
+        expectedCryptoAmount = convertUsdToCrypto(parseFloat(orderData.totalAmount), nativeToken);
         expectedChainId = orderData.chainId.toString();
         
-        console.log(`📊 Order expected payment: ${expectedCryptoAmount} ETH on chain ${expectedChainId} (rate: $${ETH_USD_RATE.toFixed(2)})`);
+        console.log(`📊 Order expected payment: ${expectedCryptoAmount} ${nativeToken} on chain ${expectedChainId} (rate: $${TOKEN_USD_RATE.toFixed(2)})`);
       }
       
       const order = await storage.createOrder({
@@ -2223,6 +2243,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expectedCryptoAmount,
         expectedChainId,
         fxRateLocked,
+        // Store native token symbol for frontend display
+        ...(orderData.paymentMethod === 'metamask' && orderData.chainId ? {
+          currency: nativeToken
+        } : {}),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
       });
 

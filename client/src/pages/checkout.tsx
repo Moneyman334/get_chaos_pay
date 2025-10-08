@@ -90,16 +90,22 @@ export default function CheckoutPage() {
       if (!currentOrder || !account || !chainId) throw new Error("Missing order, wallet, or chain info");
       
       const chainIdNum = parseInt(chainId, 16);
-      const ETH_USD_RATE = 2500;
-      const totalEth = (parseFloat(currentOrder.totalAmount) / ETH_USD_RATE).toFixed(6);
+      
+      // Use server-calculated expected amount from order (with real-time pricing)
+      const expectedAmount = currentOrder.expectedCryptoAmount;
+      const currency = currentOrder.currency || 'ETH';
       const MERCHANT_ADDRESS = import.meta.env.VITE_MERCHANT_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
+      
+      if (!expectedAmount) {
+        throw new Error("Order missing expected crypto amount. Please create a new order.");
+      }
       
       toast({
         title: "Sending Transaction",
-        description: `Sending ${totalEth} ETH to merchant...`,
+        description: `Sending ${expectedAmount} ${currency} to merchant...`,
       });
       
-      const txHash = await sendTransaction(MERCHANT_ADDRESS, totalEth);
+      const txHash = await sendTransaction(MERCHANT_ADDRESS, expectedAmount);
       
       toast({
         title: "Transaction Sent!",
@@ -112,9 +118,9 @@ export default function CheckoutPage() {
         fromAddress: account,
         toAddress: MERCHANT_ADDRESS,
         chainId: chainIdNum,
-        amount: totalEth,
+        amount: expectedAmount,
         amountUSD: currentOrder.totalAmount,
-        currency: 'ETH'
+        currency
       });
       
       return await res.json();
