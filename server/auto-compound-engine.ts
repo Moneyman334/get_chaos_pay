@@ -55,9 +55,14 @@ class AutoCompoundEngine {
       intervalMs = pool.compoundFrequency === 'hourly' ? 5 * 60 * 1000 : 15 * 60 * 1000;
     }
 
-    // Schedule compounding
+    // Schedule compounding with proper error handling
     const interval = setInterval(async () => {
-      await this.executeCompounding(pool.id);
+      try {
+        await this.executeCompounding(pool.id);
+      } catch (error) {
+        console.error(`Critical error in compounding interval for pool ${pool.id}:`, error);
+        // Don't stop the interval - log and continue with next cycle
+      }
     }, intervalMs);
 
     this.intervals.set(pool.id, interval);
