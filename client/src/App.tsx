@@ -61,6 +61,7 @@ import P2PLendingPage from "@/pages/p2p-lending";
 import PredictionMarketsPage from "@/pages/prediction-markets";
 import YieldFarmingPage from "@/pages/yield-farming";
 import SocialTradingPage from "@/pages/social-trading";
+import MarginTradingPage from "@/pages/margin-trading";
 import TokenLaunchpadPage from "@/pages/token-launchpad";
 import SupremeCommandPage from "@/pages/supreme-command";
 import TradePage from "@/pages/trade";
@@ -200,6 +201,7 @@ function Router() {
       <Route path="/prediction-markets" component={PredictionMarketsPage} />
       <Route path="/yield-farming" component={YieldFarmingPage} />
       <Route path="/social-trading" component={SocialTradingPage} />
+      <Route path="/margin-trading" component={MarginTradingPage} />
       <Route path="/token-launchpad" component={TokenLaunchpadPage} />
       <Route path="/supreme-command" component={SupremeCommandPage} />
       <Route path="/wallet-nexus" component={WalletNexusPage} />
