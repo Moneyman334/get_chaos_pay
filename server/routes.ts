@@ -3535,6 +3535,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to liquidate position" });
     }
   });
+  
+  // Get user's risk metrics
+  app.get("/api/margin/risk-metrics", tradingRateLimit, async (req, res) => {
+    try {
+      const userId = req.session?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const { marginRiskEngine } = await import("./margin-risk-engine");
+      const metrics = await marginRiskEngine.getUserRiskMetrics(userId);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Failed to fetch risk metrics:", error);
+      res.status(500).json({ error: "Failed to fetch risk metrics" });
+    }
+  });
 
   // ====================
   // House Vaults Routes

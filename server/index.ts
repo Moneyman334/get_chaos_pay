@@ -182,6 +182,14 @@ app.use((req, res, next) => {
     console.error("Failed to start auto-compound engine:", error);
   }
   
+  // Start margin risk engine
+  const { marginRiskEngine } = await import("./margin-risk-engine");
+  try {
+    await marginRiskEngine.start();
+  } catch (error) {
+    console.error("Failed to start margin risk engine:", error);
+  }
+  
   // Start social media scheduler
   const { socialScheduler } = await import("./social-scheduler");
   try {
@@ -277,6 +285,16 @@ app.use((req, res, next) => {
           hasErrors = true;
           console.error('Error stopping auto-compound engine:', error);
           // Continue with other cleanup steps
+        }
+
+        // Stop margin risk engine
+        try {
+          const { marginRiskEngine } = await import("./margin-risk-engine");
+          marginRiskEngine.stop();
+          log('Margin risk engine stopped');
+        } catch (error) {
+          hasErrors = true;
+          console.error('Error stopping margin risk engine:', error);
         }
 
         // Stop social scheduler
