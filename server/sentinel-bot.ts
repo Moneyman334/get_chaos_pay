@@ -29,17 +29,45 @@ export class SentinelBot extends EventEmitter {
   private isRunning: boolean = false;
   private positions: Map<string, any> = new Map();
   private intervalId: NodeJS.Timeout | null = null;
+  private errorCount: number = 0;
+  private readonly MAX_ERRORS = 5; // Stop bot after 5 consecutive errors
 
   constructor(config: BotConfig) {
     super();
+    
+    // Validate credentials before creating client
+    if (!config.apiKey || !config.apiSecret || !config.passphrase) {
+      throw new Error('Trading bot credentials are incomplete. Please provide apiKey, apiSecret, and passphrase.');
+    }
+    
     this.config = config;
     
-    this.client = new CoinbasePro.AuthenticatedClient(
-      config.apiKey,
-      config.apiSecret,
-      config.passphrase,
-      'https://api.exchange.coinbase.com'
-    );
+    try {
+      this.client = new CoinbasePro.AuthenticatedClient(
+        config.apiKey,
+        config.apiSecret,
+        config.passphrase,
+        'https://api.exchange.coinbase.com'
+      );
+    } catch (error) {
+      throw new Error(`Failed to initialize trading bot client: ${error}`);
+    }
+  }
+
+  private async validateCredentials(): Promise<boolean> {
+    try {
+      // Test credentials by fetching accounts
+      await this.client.getAccounts();
+      return true;
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        throw new Error('Invalid trading bot credentials. Please check your Coinbase Pro API key, secret, and passphrase.');
+      }
+      if (error.response?.status === 403) {
+        throw new Error('Trading bot API key does not have required permissions. Please enable trading permissions in Coinbase Pro.');
+      }
+      throw new Error(`Failed to validate trading bot credentials: ${error.message}`);
+    }
   }
 
   async start() {
@@ -47,14 +75,30 @@ export class SentinelBot extends EventEmitter {
       throw new Error('Bot is already running');
     }
 
+    // Validate credentials before starting
+    console.log('Validating trading bot credentials...');
+    await this.validateCredentials();
+    console.log('Trading bot credentials validated successfully');
+
     this.isRunning = true;
+    this.errorCount = 0;
     this.emit('started');
 
     this.intervalId = setInterval(async () => {
       try {
         await this.executeTradingCycle();
+        this.errorCount = 0; // Reset error count on successful cycle
       } catch (error) {
+        this.errorCount++;
+        console.error(`Trading cycle error (${this.errorCount}/${this.MAX_ERRORS}):`, error);
         this.emit('error', error);
+        
+        // Stop bot after too many consecutive errors
+        if (this.errorCount >= this.MAX_ERRORS) {
+          console.error(`Trading bot stopped after ${this.MAX_ERRORS} consecutive errors`);
+          await this.stop();
+          this.emit('critical_error', new Error(`Bot stopped due to ${this.MAX_ERRORS} consecutive errors`));
+        }
       }
     }, 60000);
   }
