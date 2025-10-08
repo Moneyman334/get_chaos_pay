@@ -8,20 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useWeb3 } from "@/hooks/use-web3";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { ArrowDownUp, TrendingUp, DollarSign, Zap, Info, RefreshCw, Settings } from "lucide-react";
+import { ArrowDownUp, TrendingUp, DollarSign, Zap, Info, RefreshCw, Settings, AlertCircle } from "lucide-react";
+import { ethers } from "ethers";
 
 interface Token {
   symbol: string;
   name: string;
   address: string;
   decimals: number;
-  logoUrl?: string;
-  price: number;
-  balance: string;
 }
 
 interface SwapQuote {
+  fromToken: string;
+  toToken: string;
   fromAmount: string;
   toAmount: string;
   rate: number;
@@ -29,53 +28,156 @@ interface SwapQuote {
   fee: string;
   minReceived: string;
   route: string[];
+  gas: string;
+  protocols: string[];
 }
 
+// Supported chains for DEX aggregator
+const SUPPORTED_CHAINS = [
+  { id: 1, name: "Ethereum", symbol: "ETH" },
+  { id: 56, name: "BSC", symbol: "BNB" },
+  { id: 137, name: "Polygon", symbol: "MATIC" },
+  { id: 42161, name: "Arbitrum", symbol: "ETH" },
+  { id: 10, name: "Optimism", symbol: "ETH" },
+  { id: 8453, name: "Base", symbol: "ETH" },
+  { id: 43114, name: "Avalanche", symbol: "AVAX" },
+  { id: 250, name: "Fantom", symbol: "FTM" },
+];
+
 export default function SwapPage() {
-  const { account, balance } = useWeb3();
+  const { account, balance, switchChain, chainId: connectedChainId } = useWeb3();
   const { toast } = useToast();
   
-  const [fromToken, setFromToken] = useState<string>("ETH");
-  const [toToken, setToToken] = useState<string>("USDC");
+  const [chainId, setChainId] = useState<number>(1); // Default Ethereum
+  const [fromToken, setFromToken] = useState<string>("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"); // Native ETH
+  const [toToken, setToToken] = useState<string>("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"); // USDC
   const [fromAmount, setFromAmount] = useState<string>("");
-  const [toAmount, setToAmount] = useState<string>("");
   const [slippage, setSlippage] = useState<number>(0.5);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Popular tokens
-  const tokens: Token[] = [
-    { symbol: "ETH", name: "Ethereum", address: "0x0", decimals: 18, price: 2000, balance: balance || "0" },
-    { symbol: "USDC", name: "USD Coin", address: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", decimals: 6, price: 1, balance: "0" },
-    { symbol: "USDT", name: "Tether", address: "0xdac17f958d2ee523a2206206994597c13d831ec7", decimals: 6, price: 1, balance: "0" },
-    { symbol: "DAI", name: "Dai Stablecoin", address: "0x6b175474e89094c44da98b954eedeac495271d0f", decimals: 18, price: 1, balance: "0" },
-    { symbol: "WBTC", name: "Wrapped Bitcoin", address: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", decimals: 8, price: 40000, balance: "0" },
-  ];
-
-  const { data: quote, refetch: refetchQuote } = useQuery<SwapQuote>({
-    queryKey: ['/api/swap/quote', fromToken, toToken, fromAmount],
-    enabled: !!fromAmount && parseFloat(fromAmount) > 0 && fromToken !== toToken,
+  // Fetch supported tokens for selected chain from backend
+  const { data: tokens = [], isLoading: tokensLoading } = useQuery<Token[]>({
+    queryKey: ['/api/swap/tokens', chainId],
+    queryFn: async () => {
+      const response = await fetch(`/api/swap/tokens/${chainId}`);
+      if (!response.ok) throw new Error('Failed to fetch tokens');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
+  // Convert amount to wei based on decimals
+  const toWei = (amount: string, decimals: number): string => {
+    if (!amount || amount === "") return "0";
+    try {
+      return ethers.parseUnits(amount, decimals).toString();
+    } catch {
+      return "0";
+    }
+  };
+
+  // Convert wei to readable amount
+  const fromWei = (amount: string, decimals: number): string => {
+    if (!amount || amount === "0") return "0";
+    try {
+      return ethers.formatUnits(amount, decimals);
+    } catch {
+      return "0";
+    }
+  };
+
+  const fromTokenData = tokens.find(t => t.address === fromToken);
+  const toTokenData = tokens.find(t => t.address === toToken);
+
+  // Get swap quote from real DEX API
+  const { data: quote, isLoading: quoteLoading, error: quoteError, refetch: refetchQuote } = useQuery<SwapQuote>({
+    queryKey: ['/api/swap/quote', chainId, fromToken, toToken, fromAmount],
+    queryFn: async () => {
+      if (!fromAmount || parseFloat(fromAmount) === 0) {
+        throw new Error("Enter amount");
+      }
+      
+      const amountWei = toWei(fromAmount, fromTokenData?.decimals || 18);
+      
+      const params = new URLSearchParams({
+        chainId: chainId.toString(),
+        fromToken,
+        toToken,
+        amount: amountWei,
+        slippage: slippage.toString(),
+      });
+
+      const response = await fetch(`/api/swap/quote?${params}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get quote');
+      }
+
+      return response.json();
+    },
+    enabled: !!fromAmount && parseFloat(fromAmount) > 0 && fromToken !== toToken && !!fromTokenData && !!toTokenData,
+    refetchInterval: 15000, // Refresh quote every 15 seconds
+  });
+
+  // Execute swap mutation
   const swapMutation = useMutation({
     mutationFn: async () => {
       if (!account) throw new Error("Connect wallet to swap");
       if (!fromAmount || parseFloat(fromAmount) === 0) throw new Error("Enter amount to swap");
+      if (connectedChainId !== chainId) {
+        await switchChain(chainId);
+        throw new Error(`Please switch to ${SUPPORTED_CHAINS.find(c => c.id === chainId)?.name}`);
+      }
       
-      return apiRequest('POST', '/api/swap', {
-        fromToken,
-        toToken,
-        fromAmount,
-        wallet: account,
-        slippage,
+      const amountWei = toWei(fromAmount, fromTokenData?.decimals || 18);
+      
+      // Get transaction data from backend
+      const response = await fetch('/api/swap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chainId,
+          fromToken,
+          toToken,
+          amount: amountWei,
+          wallet: account,
+          slippage,
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create swap transaction');
+      }
+
+      const txData = await response.json();
+      
+      // Execute transaction via MetaMask
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      
+      const tx = await signer.sendTransaction({
+        from: txData.from,
+        to: txData.to,
+        data: txData.data,
+        value: txData.value,
+        gasLimit: txData.gas,
+      });
+
+      await tx.wait();
+      
+      return { 
+        hash: tx.hash,
+        toAmount: fromWei(quote?.toAmount || "0", toTokenData?.decimals || 18)
+      };
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       toast({
         title: "Swap Successful!",
-        description: `Swapped ${fromAmount} ${fromToken} for ${data.toAmount} ${toToken}`,
+        description: `Swapped ${fromAmount} ${fromTokenData?.symbol} for ${data.toAmount} ${toTokenData?.symbol}`,
       });
       setFromAmount("");
-      setToAmount("");
+      refetchQuote();
     },
     onError: (error: Error) => {
       toast({
@@ -86,49 +188,41 @@ export default function SwapPage() {
     },
   });
 
-  // Calculate estimated output when input changes
-  useEffect(() => {
-    if (fromAmount && parseFloat(fromAmount) > 0 && fromToken !== toToken) {
-      const fromTokenData = tokens.find(t => t.symbol === fromToken);
-      const toTokenData = tokens.find(t => t.symbol === toToken);
-      
-      if (fromTokenData && toTokenData) {
-        const fromValue = parseFloat(fromAmount) * fromTokenData.price;
-        const estimatedTo = fromValue / toTokenData.price;
-        const withFee = estimatedTo * 0.997; // 0.3% fee
-        setToAmount(withFee.toFixed(6));
-      }
-    } else {
-      setToAmount("");
-    }
-  }, [fromAmount, fromToken, toToken]);
-
   const handleFlipTokens = () => {
+    const temp = fromToken;
     setFromToken(toToken);
-    setToToken(fromToken);
-    setFromAmount(toAmount);
-    setToAmount(fromAmount);
+    setToToken(temp);
   };
 
-  const handleMaxAmount = () => {
-    const token = tokens.find(t => t.symbol === fromToken);
-    if (token) {
-      setFromAmount(parseFloat(token.balance).toFixed(6));
+  // Update token selection when chain changes
+  useEffect(() => {
+    if (tokens.length >= 2) {
+      // Set from/to to different tokens when tokens load
+      setFromToken(tokens[0]?.address || "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE");
+      setToToken(tokens[1]?.address || tokens[0]?.address);
     }
+  }, [chainId, tokens.length]); // Re-run when chain or tokens change
+
+  const handleChainChange = (newChainId: string) => {
+    const id = parseInt(newChainId);
+    setChainId(id);
+    setFromAmount(""); // Reset amount when changing chains
   };
 
-  const fromTokenData = tokens.find(t => t.symbol === fromToken);
-  const toTokenData = tokens.find(t => t.symbol === toToken);
-  const estimatedValue = fromAmount && fromTokenData 
-    ? (parseFloat(fromAmount) * fromTokenData.price).toFixed(2)
-    : "0.00";
+  // Display values
+  const toAmountDisplay = quote ? fromWei(quote.toAmount, toTokenData?.decimals || 18) : "0";
+  const minReceivedDisplay = quote ? fromWei(quote.minReceived, toTokenData?.decimals || 18) : "0";
+  const feeDisplay = quote ? fromWei(quote.fee, toTokenData?.decimals || 18) : "0";
+
+  // Check if 1inch API is available
+  const isApiAvailable = !quoteError || (quoteError as Error)?.message?.includes("fallback");
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold mb-2">Token Swap</h1>
-          <p className="text-muted-foreground">Exchange cryptocurrencies instantly</p>
+          <h1 className="text-4xl font-bold mb-2">DEX Aggregator</h1>
+          <p className="text-muted-foreground">Best rates across 300+ liquidity sources</p>
         </div>
 
         {/* Stats Cards */}
@@ -137,8 +231,8 @@ export default function SwapPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">24h Volume</p>
-                  <p className="text-2xl font-bold">$1.2M</p>
+                  <p className="text-sm text-muted-foreground">Supported Chains</p>
+                  <p className="text-2xl font-bold">{SUPPORTED_CHAINS.length}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-green-500" />
               </div>
@@ -149,8 +243,8 @@ export default function SwapPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Swaps</p>
-                  <p className="text-2xl font-bold">45.3K</p>
+                  <p className="text-sm text-muted-foreground">DEX Sources</p>
+                  <p className="text-2xl font-bold">300+</p>
                 </div>
                 <ArrowDownUp className="h-8 w-8 text-blue-500" />
               </div>
@@ -161,7 +255,7 @@ export default function SwapPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Swap Fee</p>
+                  <p className="text-sm text-muted-foreground">Platform Fee</p>
                   <p className="text-2xl font-bold">0.3%</p>
                 </div>
                 <Zap className="h-8 w-8 text-yellow-500" />
@@ -215,6 +309,23 @@ export default function SwapPage() {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {/* Chain Selector */}
+            <div className="space-y-2">
+              <Label>Network</Label>
+              <Select value={chainId.toString()} onValueChange={handleChainChange}>
+                <SelectTrigger data-testid="select-chain">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_CHAINS.map(chain => (
+                    <SelectItem key={chain.id} value={chain.id.toString()}>
+                      {chain.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* From Token */}
             <div className="space-y-2">
               <Label>From</Label>
@@ -226,7 +337,7 @@ export default function SwapPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {tokens.map(token => (
-                        <SelectItem key={token.symbol} value={token.symbol}>
+                        <SelectItem key={token.address} value={token.address}>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold">{token.symbol}</span>
                             <span className="text-sm text-muted-foreground">{token.name}</span>
@@ -236,30 +347,14 @@ export default function SwapPage() {
                     </SelectContent>
                   </Select>
 
-                  <div className="flex-1 relative">
-                    <Input
-                      type="number"
-                      placeholder="0.0"
-                      value={fromAmount}
-                      onChange={(e) => setFromAmount(e.target.value)}
-                      className="pr-16"
-                      data-testid="input-from-amount"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-2 top-1/2 -translate-y-1/2"
-                      onClick={handleMaxAmount}
-                      data-testid="button-max"
-                    >
-                      MAX
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex justify-between text-sm text-muted-foreground mt-2">
-                  <span>Balance: {fromTokenData ? parseFloat(fromTokenData.balance).toFixed(6) : "0"} {fromToken}</span>
-                  <span>≈ ${estimatedValue}</span>
+                  <Input
+                    type="number"
+                    placeholder="0.0"
+                    value={fromAmount}
+                    onChange={(e) => setFromAmount(e.target.value)}
+                    className="flex-1"
+                    data-testid="input-from-amount"
+                  />
                 </div>
               </div>
             </div>
@@ -279,7 +374,7 @@ export default function SwapPage() {
 
             {/* To Token */}
             <div className="space-y-2">
-              <Label>To</Label>
+              <Label>To (estimated)</Label>
               <div className="flex gap-2">
                 <Select value={toToken} onValueChange={setToToken}>
                   <SelectTrigger className="w-[180px]" data-testid="select-to-token">
@@ -287,7 +382,7 @@ export default function SwapPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {tokens.map(token => (
-                      <SelectItem key={token.symbol} value={token.symbol}>
+                      <SelectItem key={token.address} value={token.address}>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">{token.symbol}</span>
                           <span className="text-sm text-muted-foreground">{token.name}</span>
@@ -297,47 +392,71 @@ export default function SwapPage() {
                   </SelectContent>
                 </Select>
 
-                <Input
-                  type="number"
-                  placeholder="0.0"
-                  value={toAmount}
-                  readOnly
-                  className="flex-1"
-                  data-testid="input-to-amount"
-                />
-              </div>
-
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Balance: {toTokenData ? parseFloat(toTokenData.balance).toFixed(6) : "0"} {toToken}</span>
-                <span>≈ ${toAmount && toTokenData ? (parseFloat(toAmount) * toTokenData.price).toFixed(2) : "0.00"}</span>
+                <div className="flex-1 relative">
+                  <Input
+                    type="text"
+                    placeholder="0.0"
+                    value={quoteLoading ? "Loading..." : toAmountDisplay}
+                    readOnly
+                    className="flex-1"
+                    data-testid="input-to-amount"
+                  />
+                  {quoteLoading && (
+                    <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Swap Details */}
-            {fromAmount && toAmount && fromToken !== toToken && (
+            {quote && (
               <div className="p-4 bg-muted rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Rate</span>
                   <span className="font-semibold">
-                    1 {fromToken} = {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)} {toToken}
+                    1 {fromTokenData?.symbol} = {quote.rate.toFixed(6)} {toTokenData?.symbol}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Fee (0.3%)</span>
+                  <span className="text-muted-foreground">Platform Fee (0.3%)</span>
                   <span className="font-semibold">
-                    {(parseFloat(fromAmount) * 0.003).toFixed(6)} {fromToken}
+                    {parseFloat(feeDisplay).toFixed(6)} {toTokenData?.symbol}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Price Impact</span>
-                  <span className="font-semibold text-green-600">&lt;0.01%</span>
+                  <span className={`font-semibold ${quote.priceImpact > 1 ? 'text-red-600' : 'text-green-600'}`}>
+                    {quote.priceImpact.toFixed(2)}%
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Min Received</span>
                   <span className="font-semibold">
-                    {(parseFloat(toAmount) * (1 - slippage / 100)).toFixed(6)} {toToken}
+                    {parseFloat(minReceivedDisplay).toFixed(6)} {toTokenData?.symbol}
                   </span>
                 </div>
+                {quote.protocols.length > 0 && (
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="text-muted-foreground">Route</span>
+                    <div className="flex gap-1 flex-wrap justify-end">
+                      {quote.protocols.slice(0, 3).map((protocol, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">
+                          {protocol}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* API Warning */}
+            {quoteError && (quoteError as Error)?.message?.includes("1inch API key") && (
+              <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                  DEX trading disabled: 1inch API key required. Using fallback pricing for quotes.
+                </p>
               </div>
             )}
 
@@ -351,7 +470,9 @@ export default function SwapPage() {
                 !fromAmount ||
                 parseFloat(fromAmount) === 0 ||
                 fromToken === toToken ||
-                swapMutation.isPending
+                swapMutation.isPending ||
+                !quote ||
+                quoteLoading
               }
               data-testid="button-swap"
             >
@@ -361,6 +482,8 @@ export default function SwapPage() {
                 ? "Select Different Tokens"
                 : swapMutation.isPending
                 ? "Swapping..."
+                : connectedChainId !== chainId
+                ? `Switch to ${SUPPORTED_CHAINS.find(c => c.id === chainId)?.name}`
                 : "Swap"}
             </Button>
 
@@ -368,42 +491,8 @@ export default function SwapPage() {
             <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-blue-600 dark:text-blue-400">
-                Swaps are executed instantly with best available rates across multiple liquidity pools
+                Powered by 1inch - aggregating 300+ DEX sources for best execution across {SUPPORTED_CHAINS.length} chains
               </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Popular Pairs */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Popular Trading Pairs</CardTitle>
-            <CardDescription>Quick access to frequently traded pairs</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2">
-              {[
-                { from: "ETH", to: "USDC", change: "+2.4%" },
-                { from: "WBTC", to: "ETH", change: "+1.2%" },
-                { from: "ETH", to: "DAI", change: "+2.3%" },
-                { from: "USDC", to: "USDT", change: "+0.01%" },
-              ].map((pair, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  className="justify-between"
-                  onClick={() => {
-                    setFromToken(pair.from);
-                    setToToken(pair.to);
-                  }}
-                  data-testid={`button-pair-${pair.from}-${pair.to}`}
-                >
-                  <span className="font-semibold">{pair.from}/{pair.to}</span>
-                  <Badge variant="secondary" className="bg-green-500/10 text-green-600">
-                    {pair.change}
-                  </Badge>
-                </Button>
-              ))}
             </div>
           </CardContent>
         </Card>
