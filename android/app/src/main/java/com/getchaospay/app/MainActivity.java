@@ -1,4 +1,4 @@
-package com.chaoscrypto.casino;
+package com.getchaospay.app;
 
 import com.getcapacitor.BridgeActivity;
 

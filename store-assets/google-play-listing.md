@@ -2,7 +2,7 @@
 
 ## App Details
 **App Name:** Chaos Crypto Casino  
-**Package Name:** com.chaoscrypto.casino  
+**Package Name:** com.getchaospay.app  
 **Category:** Finance  
 **Content Rating:** Mature 17+ (due to crypto trading)
 

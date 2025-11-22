@@ -1,7 +1,7 @@
 # 🏛️ CHAOS CRYPTO CASINO - COMPLETE APP STORE DEPLOYMENT GUIDE
 
 **App Name:** Chaos Crypto Casino - Web3 Blockchain Empire  
-**Package ID:** com.chaoscrypto.casino  
+**Package ID:** com.getchaospay.app  
 **Version:** 1.0.1 (Version Code 2)  
 **Repository:** https://github.com/Moneyman334/chaos-crypto-casino
 
@@ -273,7 +273,7 @@ Join the Web3 revolution. Download Chaos Crypto Casino now and build your blockc
 3. **Configure Signing:**
    - Select your Apple Developer team
    - Choose automatic signing
-   - Set Bundle ID: `com.chaoscrypto.casino`
+   - Set Bundle ID: `com.getchaospay.app`
 
 4. **Build for Release:**
    - Product → Archive
@@ -285,7 +285,7 @@ Join the Web3 revolution. Download Chaos Crypto Casino now and build your blockc
 
 1. **Create New App:**
    - Name: Chaos Crypto Casino
-   - Bundle ID: com.chaoscrypto.casino
+   - Bundle ID: com.getchaospay.app
    - SKU: chaoscrypto-casino
    - Primary Language: English
    - Category: Finance
@@ -359,7 +359,7 @@ Join the Web3 revolution. Download Chaos Crypto Casino now and build your blockc
 
 ### **Google Play:**
 - **Console:** https://play.google.com/console
-- **Future Public Link:** `https://play.google.com/store/apps/details?id=com.chaoscrypto.casino`
+- **Future Public Link:** `https://play.google.com/store/apps/details?id=com.getchaospay.app`
 
 ### **Apple:**
 - **Developer Portal:** https://developer.apple.com

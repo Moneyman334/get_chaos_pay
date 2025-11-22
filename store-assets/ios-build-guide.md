@@ -4,7 +4,7 @@
 1. **Mac Computer** (macOS required for iOS builds)
 2. **Xcode 15+** installed from Mac App Store
 3. **Apple Developer Account** ($99/year)
-4. **Valid Bundle ID:** com.chaoscrypto.casino
+4. **Valid Bundle ID:** com.getchaospay.app
 
 ## Step 1: Apple Developer Setup
 
@@ -15,7 +15,7 @@
 4. Select **App IDs** → **App**
 5. Enter:
    - **Description:** Chaos Crypto Casino
-   - **Bundle ID:** com.chaoscrypto.casino (Explicit)
+   - **Bundle ID:** com.getchaospay.app (Explicit)
    - **Capabilities:** Enable as needed
 6. Click **Continue** → **Register**
 
@@ -32,7 +32,7 @@
 ### Create Provisioning Profile
 1. Go to **Profiles** → **+** button
 2. Select **App Store**
-3. Choose App ID: com.chaoscrypto.casino
+3. Choose App ID: com.getchaospay.app
 4. Select certificate created above
 5. Name it: "Chaos Crypto Casino Distribution"
 6. Download and install (double-click)
@@ -101,7 +101,7 @@ open ios/App/App.xcodeproj
    - **Platform:** iOS
    - **Name:** Chaos Crypto Casino
    - **Primary Language:** English (U.S.)
-   - **Bundle ID:** com.chaoscrypto.casino
+   - **Bundle ID:** com.getchaospay.app
    - **SKU:** chaoscrypto-casino-001
    - **User Access:** Full Access
 

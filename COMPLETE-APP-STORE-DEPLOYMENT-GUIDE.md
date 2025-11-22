@@ -2,7 +2,7 @@
 
 **Build Status:** ✅ AAB Successfully Built on GitHub Actions  
 **Repository:** https://github.com/Moneyman334/chaos-crypto-casino  
-**App ID:** com.chaoscrypto.casino
+**App ID:** com.getchaospay.app
 
 ---
 
@@ -226,7 +226,7 @@
 3. **Configure signing:**
    - Select your team
    - Choose automatic signing
-   - Set bundle ID: com.chaoscrypto.casino
+   - Set bundle ID: com.getchaospay.app
 
 4. **Build for release:**
    - Product → Archive
@@ -239,7 +239,7 @@
 
 2. **Create new app:**
    - Name: Chaos Crypto Casino
-   - Bundle ID: com.chaoscrypto.casino
+   - Bundle ID: com.getchaospay.app
    - SKU: chaoscryptocasino
    - Category: Finance
 

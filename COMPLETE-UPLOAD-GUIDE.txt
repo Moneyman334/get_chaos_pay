@@ -122,7 +122,7 @@ IMPORTANT FILE TYPES
 
 Created: October 9, 2025
 Build Status: Success ✅
-Package: com.chaoscrypto.casino
+Package: com.getchaospay.app
 Version: 1.0.1 (Code: 2)
 
 You're ONE upload away from launching your app!

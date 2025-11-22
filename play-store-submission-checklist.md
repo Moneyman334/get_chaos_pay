@@ -17,7 +17,7 @@ Follow this checklist step-by-step to successfully publish your app to Google Pl
 ### App Creation
 - [x] App created in Play Console
 - [x] App name: "Chaos Crypto Casino" (or your choice)
-- [x] Package name: `com.chaoscrypto.casino`
+- [x] Package name: `com.getchaospay.app`
 - [x] Category: Game (or Finance if available)
 - [x] Free/Paid: Free
 
@@ -302,7 +302,7 @@ Follow this checklist step-by-step to successfully publish your app to Google Pl
   - Check listing appears correctly
 
 - [ ] **Share your app**
-  - Play Store link: `https://play.google.com/store/apps/details?id=com.chaoscrypto.casino`
+  - Play Store link: `https://play.google.com/store/apps/details?id=com.getchaospay.app`
   - Share on social media
   - Add to website
 

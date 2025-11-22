@@ -4,7 +4,7 @@ CHAOS CRYPTO CASINO - APP STORE DEPLOYMENT QUICK GUIDE
 
 APP INFO:
 - Name: Chaos Crypto Casino - Web3 Blockchain Empire
-- Package: com.chaoscrypto.casino
+- Package: com.getchaospay.app
 - Version: 1.0.1 (Code: 2)
 - Repo: https://github.com/Moneyman334/chaos-crypto-casino
 

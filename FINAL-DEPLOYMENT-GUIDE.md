@@ -25,7 +25,7 @@ You have the AAB file downloaded (SHA256: `5fb02b6a47c9eabdbbf47798d340c08a7f6fb
 ## 📱 APP INFORMATION
 
 - **App Name:** Chaos Crypto Casino - Web3 Blockchain Empire
-- **Package ID:** com.chaoscrypto.casino  
+- **Package ID:** com.getchaospay.app  
 - **Version:** 1.0.1 (Version Code: 2)
 - **Repository:** https://github.com/Moneyman334/chaos-crypto-casino
 - **Build Status:** ✅ Success
@@ -197,7 +197,7 @@ Upload these to Google Play Console:
 npx cap open ios
 ```
 - Configure signing (automatic)
-- Set Bundle ID: com.chaoscrypto.casino
+- Set Bundle ID: com.getchaospay.app
 - Product → Archive → Distribute → Upload to App Store
 
 **3. App Store Connect:**

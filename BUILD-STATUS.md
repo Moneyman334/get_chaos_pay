@@ -9,7 +9,7 @@
 ## 📱 App Information
 
 - **App Name:** Chaos Crypto Casino - Web3 Blockchain Empire
-- **Package ID:** com.chaoscrypto.casino
+- **Package ID:** com.getchaospay.app
 - **Version:** 1.0.0
 - **Repository:** [Moneyman334/chaos-crypto-casino](https://github.com/Moneyman334/chaos-crypto-casino)
 

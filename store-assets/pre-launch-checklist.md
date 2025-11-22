@@ -3,8 +3,8 @@
 ## ✅ Technical Requirements
 
 ### Mobile App Build
-- [x] Android project configured (com.chaoscrypto.casino)
-- [x] iOS project configured (com.chaoscrypto.casino)
+- [x] Android project configured (com.getchaospay.app)
+- [x] iOS project configured (com.getchaospay.app)
 - [x] GitHub Actions workflow for automated Android builds
 - [x] Signing keystore created for Android
 - [ ] iOS certificates and provisioning profiles created
@@ -68,7 +68,7 @@
 - [ ] Promo video (optional, 30-120 seconds)
 
 ### Technical Setup
-- [x] Package name: com.chaoscrypto.casino
+- [x] Package name: com.getchaospay.app
 - [ ] Signed AAB file built and tested
 - [ ] Version code: 1
 - [ ] Version name: 1.0
@@ -104,7 +104,7 @@
 - [ ] App preview video (optional, 15-30 sec)
 
 ### Technical Setup
-- [x] Bundle ID: com.chaoscrypto.casino
+- [x] Bundle ID: com.getchaospay.app
 - [ ] Apple Developer account active ($99/year)
 - [ ] App ID created
 - [ ] Distribution certificate created

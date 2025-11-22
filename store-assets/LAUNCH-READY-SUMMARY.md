@@ -11,7 +11,7 @@ Your Chaos Crypto Casino app is fully prepared for **Google Play Store** and **A
 ### ✅ Technical Infrastructure
 - **Android Build System:** GitHub Actions workflow configured for automatic AAB/APK builds
 - **iOS Project:** Capacitor configured, ready for Xcode build
-- **App ID:** com.chaoscrypto.casino (both platforms)
+- **App ID:** com.getchaospay.app (both platforms)
 - **Version:** 1.0 (Build 1)
 - **Legal Pages:** All accessible and production-ready
   - Privacy Policy: ✅ https://chaoscryptocasino.com/privacy
@@ -74,7 +74,7 @@ Your Chaos Crypto Casino app is fully prepared for **Google Play Store** and **A
 
 #### Step 1: Apple Developer Setup
 1. Enroll in [Apple Developer Program](https://developer.apple.com/programs/) ($99/year)
-2. Create App ID: com.chaoscrypto.casino
+2. Create App ID: com.getchaospay.app
 3. Generate Distribution Certificate
 4. Create App Store Provisioning Profile
 

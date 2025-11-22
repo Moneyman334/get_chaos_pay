@@ -2,7 +2,7 @@
 
 ## App Information
 **App Name:** Chaos Crypto Casino  
-**Bundle ID:** com.chaoscrypto.casino  
+**Bundle ID:** com.getchaospay.app  
 **Primary Category:** Finance  
 **Secondary Category:** Utilities  
 **Age Rating:** 17+ (Frequent/Intense Simulated Gambling; Unrestricted Web Access)
