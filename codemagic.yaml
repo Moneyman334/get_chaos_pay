@@ -18,7 +18,7 @@ workflows:
         APP_STORE_APPLE_ID: 6739287109
 
       node: 20
-      xcode: 15.1
+      xcode: 15.4
       cocoapods: default
 
     scripts:
@@ -34,14 +34,20 @@ workflows:
       - name: Install CocoaPods
         script: cd ios/App && pod install
 
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files com.getchaospay.app --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+
       - name: Build iOS IPA
         script: |
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+          xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
 
     artifacts:
       - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
 
     publishing:
       app_store_connect:
@@ -66,7 +72,7 @@ workflows:
       - name: Sync Capacitor Android
         script: npx cap sync android
 
-      - name: Build Android AAB
+      - name: Build Android release
         script: cd android && ./gradlew bundleRelease
 
     artifacts:
