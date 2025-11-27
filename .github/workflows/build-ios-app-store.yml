@@ -263,8 +263,8 @@ jobs:
             exit 0
           fi
           
-          # Create provisioning profiles directory
-          PROFILES_DIR=~/Library/MobileDevice/Provisioning\ Profiles
+          # Create provisioning profiles directory (handle spaces in path)
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILES_DIR"
           
           # Decode profile to a temporary location
@@ -327,42 +327,50 @@ jobs:
           cat "${{ env.IOS_APP_PATH }}/exportOptions.plist"
 
       # =========================================================================
+      # PREPARE XCODE BUILD ARGUMENTS
+      # =========================================================================
+      - name: Prepare xcodebuild arguments
+        id: xcode-args
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          # Determine workspace or project argument
+          if [ "${{ steps.detect-project.outputs.project-type }}" = "workspace" ]; then
+            echo "project-arg=-workspace ${{ steps.detect-project.outputs.workspace }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "project-arg=-project ${{ steps.detect-project.outputs.project }}" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Determine team argument
+          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-}"
+          if [ -n "$TEAM_ID" ]; then
+            echo "team-arg=DEVELOPMENT_TEAM=$TEAM_ID" >> "$GITHUB_OUTPUT"
+          else
+            echo "team-arg=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # =========================================================================
       # BUILD ARCHIVE - STRATEGY A: generic/platform=iOS
       # =========================================================================
       - name: Archive - Attempt A (generic/platform=iOS)
         id: archive-a
         continue-on-error: true
-        env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: |
           cd "${{ env.IOS_APP_PATH }}"
           mkdir -p build/logs
-          
-          XCODE_ARGS=""
-          if [ "${{ steps.detect-project.outputs.project-type }}" = "workspace" ]; then
-            XCODE_ARGS="-workspace ${{ steps.detect-project.outputs.workspace }}"
-          else
-            XCODE_ARGS="-project ${{ steps.detect-project.outputs.project }}"
-          fi
-          
-          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-}"
-          TEAM_ARG=""
-          if [ -n "$TEAM_ID" ]; then
-            TEAM_ARG="DEVELOPMENT_TEAM=$TEAM_ID"
-          fi
           
           echo "=== Archive Attempt A: generic/platform=iOS ===" | tee build/logs/archive-attempt-a.log
           
           set +e
           xcodebuild \
-            $XCODE_ARGS \
+            ${{ steps.xcode-args.outputs.project-arg }} \
             -scheme "${{ env.SCHEME_NAME }}" \
             -configuration "${{ env.CONFIGURATION }}" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             -archivePath build/App.xcarchive \
             CODE_SIGN_STYLE=Automatic \
-            $TEAM_ARG \
+            ${{ steps.xcode-args.outputs.team-arg }} \
             -allowProvisioningUpdates \
             archive 2>&1 | tee -a build/logs/archive-attempt-a.log
           
@@ -384,8 +392,6 @@ jobs:
         id: archive-b
         if: steps.archive-a.outputs.archive-success != 'true'
         continue-on-error: true
-        env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: |
           cd "${{ env.IOS_APP_PATH }}"
           mkdir -p build/logs
@@ -393,31 +399,18 @@ jobs:
           # Clean previous attempt
           rm -rf build/App.xcarchive
           
-          XCODE_ARGS=""
-          if [ "${{ steps.detect-project.outputs.project-type }}" = "workspace" ]; then
-            XCODE_ARGS="-workspace ${{ steps.detect-project.outputs.workspace }}"
-          else
-            XCODE_ARGS="-project ${{ steps.detect-project.outputs.project }}"
-          fi
-          
-          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-}"
-          TEAM_ARG=""
-          if [ -n "$TEAM_ID" ]; then
-            TEAM_ARG="DEVELOPMENT_TEAM=$TEAM_ID"
-          fi
-          
           echo "=== Archive Attempt B: -sdk iphoneos ===" | tee build/logs/archive-attempt-b.log
           
           set +e
           xcodebuild \
-            $XCODE_ARGS \
+            ${{ steps.xcode-args.outputs.project-arg }} \
             -scheme "${{ env.SCHEME_NAME }}" \
             -configuration "${{ env.CONFIGURATION }}" \
             -sdk iphoneos \
             -derivedDataPath build/DerivedData \
             -archivePath build/App.xcarchive \
             CODE_SIGN_STYLE=Automatic \
-            $TEAM_ARG \
+            ${{ steps.xcode-args.outputs.team-arg }} \
             -allowProvisioningUpdates \
             archive 2>&1 | tee -a build/logs/archive-attempt-b.log
           
@@ -439,8 +432,6 @@ jobs:
         id: archive-c
         if: steps.archive-a.outputs.archive-success != 'true' && steps.archive-b.outputs.archive-success != 'true'
         continue-on-error: true
-        env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: |
           cd "${{ env.IOS_APP_PATH }}"
           mkdir -p build/logs
@@ -448,24 +439,11 @@ jobs:
           # Clean previous attempt
           rm -rf build/App.xcarchive
           
-          XCODE_ARGS=""
-          if [ "${{ steps.detect-project.outputs.project-type }}" = "workspace" ]; then
-            XCODE_ARGS="-workspace ${{ steps.detect-project.outputs.workspace }}"
-          else
-            XCODE_ARGS="-project ${{ steps.detect-project.outputs.project }}"
-          fi
-          
-          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-}"
-          TEAM_ARG=""
-          if [ -n "$TEAM_ID" ]; then
-            TEAM_ARG="DEVELOPMENT_TEAM=$TEAM_ID"
-          fi
-          
           echo "=== Archive Attempt C: -sdk iphoneos -arch arm64 ===" | tee build/logs/archive-attempt-c.log
           
           set +e
           xcodebuild \
-            $XCODE_ARGS \
+            ${{ steps.xcode-args.outputs.project-arg }} \
             -scheme "${{ env.SCHEME_NAME }}" \
             -configuration "${{ env.CONFIGURATION }}" \
             -sdk iphoneos \
@@ -473,7 +451,7 @@ jobs:
             -derivedDataPath build/DerivedData \
             -archivePath build/App.xcarchive \
             CODE_SIGN_STYLE=Automatic \
-            $TEAM_ARG \
+            ${{ steps.xcode-args.outputs.team-arg }} \
             -allowProvisioningUpdates \
             archive 2>&1 | tee -a build/logs/archive-attempt-c.log
           
@@ -510,17 +488,9 @@ jobs:
         id: export-ipa
         if: steps.verify-archive.outputs.archive-exists == 'true'
         continue-on-error: true
-        env:
-          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
         run: |
           cd "${{ env.IOS_APP_PATH }}"
           mkdir -p build/logs build/ipa
-          
-          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-}"
-          TEAM_ARG=""
-          if [ -n "$TEAM_ID" ]; then
-            TEAM_ARG="DEVELOPMENT_TEAM=$TEAM_ID"
-          fi
           
           echo "=== Exporting IPA ===" | tee build/logs/export.log
           
@@ -530,7 +500,7 @@ jobs:
             -archivePath build/App.xcarchive \
             -exportOptionsPlist exportOptions.plist \
             -exportPath build/ipa \
-            $TEAM_ARG \
+            ${{ steps.xcode-args.outputs.team-arg }} \
             -allowProvisioningUpdates 2>&1 | tee -a build/logs/export.log
           
           EXIT_CODE=$?
@@ -598,7 +568,8 @@ jobs:
           # Remove only the specific provisioning profile we installed
           PROFILE_UUID="${{ steps.install-profile.outputs.profile-uuid }}"
           if [ -n "$PROFILE_UUID" ]; then
-            rm -f ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision || true
+            PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            rm -f "$PROFILES_DIR/$PROFILE_UUID.mobileprovision" || true
             echo "Removed provisioning profile: $PROFILE_UUID"
           fi
 
