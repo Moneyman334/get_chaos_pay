@@ -1,0 +1,13 @@
+# iOS CI Workflow
+
+The following is a CI workflow for building an iOS app IPA archive ready for App Store submission. This file includes all the necessary steps for code signing and complete build configurations.
+
+## Workflow Steps
+1. **Checkout Code**: Pulls the latest code from the repository.
+2. **Setup Ruby Environment**: Installs necessary Ruby dependencies required for fastlane.
+3. **Code Signing**: Ensures that the code is signed before the build process begins.
+4. **Build IPA**: The final step in the workflow where the IPA is built and ready for submission to the App Store.
+
+### Notes
+- Ensure that all secrets related to signing are stored in GitHub Secrets.
+- Follow best practices for managing fastlane and other dependencies.
