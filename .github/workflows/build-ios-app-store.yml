@@ -101,27 +101,34 @@ jobs:
         run: |
           cd "${{ env.IOS_APP_PATH }}"
           
+          # Check for App.xcworkspace first (most common for Capacitor projects)
           if [ -d "App.xcworkspace" ]; then
             echo "workspace=App.xcworkspace" >> "$GITHUB_OUTPUT"
             echo "project-type=workspace" >> "$GITHUB_OUTPUT"
             echo "Found workspace: App.xcworkspace"
-          elif [ -d "*.xcworkspace" ]; then
-            WORKSPACE=$(ls -d *.xcworkspace | head -1)
-            echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
-            echo "project-type=workspace" >> "$GITHUB_OUTPUT"
-            echo "Found workspace: $WORKSPACE"
-          elif [ -d "App.xcodeproj" ]; then
-            echo "project=App.xcodeproj" >> "$GITHUB_OUTPUT"
-            echo "project-type=project" >> "$GITHUB_OUTPUT"
-            echo "Found project: App.xcodeproj"
-          elif [ -d "*.xcodeproj" ]; then
-            PROJECT=$(ls -d *.xcodeproj | head -1)
-            echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
-            echo "project-type=project" >> "$GITHUB_OUTPUT"
-            echo "Found project: $PROJECT"
           else
-            echo "::error::No .xcworkspace or .xcodeproj found in ${{ env.IOS_APP_PATH }}"
-            exit 1
+            # Try to find any .xcworkspace using glob expansion
+            WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" -type d | head -1 | sed 's|^\./||')
+            if [ -n "$WORKSPACE" ]; then
+              echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+              echo "project-type=workspace" >> "$GITHUB_OUTPUT"
+              echo "Found workspace: $WORKSPACE"
+            elif [ -d "App.xcodeproj" ]; then
+              echo "project=App.xcodeproj" >> "$GITHUB_OUTPUT"
+              echo "project-type=project" >> "$GITHUB_OUTPUT"
+              echo "Found project: App.xcodeproj"
+            else
+              # Try to find any .xcodeproj using glob expansion
+              PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" -type d | head -1 | sed 's|^\./||')
+              if [ -n "$PROJECT" ]; then
+                echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+                echo "project-type=project" >> "$GITHUB_OUTPUT"
+                echo "Found project: $PROJECT"
+              else
+                echo "::error::No .xcworkspace or .xcodeproj found in ${{ env.IOS_APP_PATH }}"
+                exit 1
+              fi
+            fi
           fi
 
       # =========================================================================
@@ -247,6 +254,7 @@ jobs:
           rm -f "$CERT_PATH"
 
       - name: Install provisioning profile
+        id: install-profile
         env:
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
         run: |
@@ -256,15 +264,29 @@ jobs:
           fi
           
           # Create provisioning profiles directory
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          PROFILES_DIR=~/Library/MobileDevice/Provisioning\ Profiles
+          mkdir -p "$PROFILES_DIR"
           
-          # Decode and install profile
-          PROFILE_PATH=~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
-          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_PATH"
+          # Decode profile to a temporary location
+          TEMP_PROFILE="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > "$TEMP_PROFILE"
           
-          # Extract UUID and rename
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< $(security cms -D -i "$PROFILE_PATH"))
-          mv "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+          # Extract UUID using security cms and PlistBuddy separately for better error handling
+          DECODED_PLIST="$RUNNER_TEMP/profile_decoded.plist"
+          security cms -D -i "$TEMP_PROFILE" > "$DECODED_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$DECODED_PLIST")
+          
+          if [ -z "$PROFILE_UUID" ]; then
+            echo "::error::Failed to extract UUID from provisioning profile"
+            exit 1
+          fi
+          
+          # Install profile with UUID as filename
+          FINAL_PATH="$PROFILES_DIR/$PROFILE_UUID.mobileprovision"
+          cp "$TEMP_PROFILE" "$FINAL_PATH"
+          
+          # Cleanup temp files
+          rm -f "$TEMP_PROFILE" "$DECODED_PLIST"
           
           echo "Provisioning profile installed with UUID: $PROFILE_UUID"
           echo "profile-uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
@@ -565,14 +587,20 @@ jobs:
       # =========================================================================
       # CLEANUP
       # =========================================================================
-      - name: Cleanup keychain
+      - name: Cleanup keychain and provisioning profile
         if: always()
         run: |
+          # Remove the temporary keychain
           if [ -f "${{ steps.keychain.outputs.keychain-path }}" ]; then
             security delete-keychain "${{ steps.keychain.outputs.keychain-path }}" || true
           fi
-          # Remove any leftover provisioning profiles
-          rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision || true
+          
+          # Remove only the specific provisioning profile we installed
+          PROFILE_UUID="${{ steps.install-profile.outputs.profile-uuid }}"
+          if [ -n "$PROFILE_UUID" ]; then
+            rm -f ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision || true
+            echo "Removed provisioning profile: $PROFILE_UUID"
+          fi
 
       # =========================================================================
       # BUILD STATUS SUMMARY
