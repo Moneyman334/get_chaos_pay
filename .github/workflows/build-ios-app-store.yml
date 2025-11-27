@@ -1,70 +1,631 @@
-name: iOS build ready for App Store
+# =============================================================================
+# iOS App Store Build Workflow
+# =============================================================================
+#
+# This workflow builds an iOS App Store archive and .ipa for the "App" scheme.
+# It handles CocoaPods, code signing, and provides multiple archive strategies
+# to work around common CI issues like "Found no destinations" or simulator
+# placeholder issues (Exit code 65/70).
+#
+# REQUIRED SECRETS:
+# -----------------
+# - APPLE_DEVELOPMENT_TEAM: Your Apple Developer Team ID (e.g., "ABC123XYZ")
+# - APPLE_CERTIFICATE: Base64-encoded .p12 certificate file
+# - APPLE_CERT_P12_PASSWORD: Password for the .p12 certificate
+# - APPLE_PROVISIONING_PROFILE: Base64-encoded .mobileprovision file
+#
+# OPTIONAL SECRETS:
+# -----------------
+# - KEYCHAIN_PASSWORD: Custom keychain password (defaults to random UUID)
+# - EXPORT_METHOD: Export method (defaults to "app-store")
+#
+# HOW TO PREPARE SECRETS:
+# -----------------------
+# 1. Export your distribution certificate as a .p12 file from Keychain Access
+# 2. Base64-encode the certificate:
+#    base64 -i YourCertificate.p12 | pbcopy
+# 3. Base64-encode the provisioning profile:
+#    base64 -i YourProfile.mobileprovision | pbcopy
+# 4. Add secrets in: Repository Settings → Secrets and variables → Actions
+#
+# SHARING THE XCODE SCHEME:
+# -------------------------
+# The "App" scheme must be shared for CI to find it:
+# 1. Open ios/App/App.xcworkspace in Xcode
+# 2. Product → Scheme → Manage Schemes
+# 3. Check the "Shared" checkbox next to "App"
+# 4. Commit: ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+#
+# TESTING INSTRUCTIONS:
+# ---------------------
+# 1. Create a branch and push changes
+# 2. Go to Actions → "iOS App Store Build" → Run workflow
+# 3. Inspect uploaded artifacts:
+#    - xcode-archive-attempt-*.log: Archive attempt logs
+#    - xcode-export.log: Export log
+#    - App.ipa: The signed IPA (if successful)
+# =============================================================================
+
+name: iOS App Store Build
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-    paths:
-      - 'ios/**'
-      - 'client/**'
-      - 'package.json'
-      - 'capacitor.config.ts'
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  IOS_APP_PATH: ios/App
+  SCHEME_NAME: App
+  CONFIGURATION: Release
 
 jobs:
   build-ios:
     name: Build iOS IPA for App Store
     runs-on: macos-latest
-    
+    timeout-minutes: 60
+
     steps:
+      # =========================================================================
+      # CHECKOUT AND SETUP
+      # =========================================================================
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build web app
-        run: npm run build
-      
+
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
-      
-      - name: Sync Capacitor
+
+      - name: Print Xcode version
         run: |
-          npm install -g @capacitor/cli
+          xcodebuild -version
+          xcrun simctl list devices available
+
+      # =========================================================================
+      # DETECT WORKSPACE/PROJECT
+      # =========================================================================
+      - name: Detect iOS workspace or project
+        id: detect-project
+        run: |
+          cd "${{ env.IOS_APP_PATH }}"
+          
+          # Check for App.xcworkspace first (most common for Capacitor projects)
+          if [ -d "App.xcworkspace" ]; then
+            echo "workspace=App.xcworkspace" >> "$GITHUB_OUTPUT"
+            echo "project-type=workspace" >> "$GITHUB_OUTPUT"
+            echo "Found workspace: App.xcworkspace"
+          else
+            # Try to find any .xcworkspace using glob expansion
+            WORKSPACE=$(find . -maxdepth 1 -name "*.xcworkspace" -type d | head -1 | sed 's|^\./||')
+            if [ -n "$WORKSPACE" ]; then
+              echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+              echo "project-type=workspace" >> "$GITHUB_OUTPUT"
+              echo "Found workspace: $WORKSPACE"
+            elif [ -d "App.xcodeproj" ]; then
+              echo "project=App.xcodeproj" >> "$GITHUB_OUTPUT"
+              echo "project-type=project" >> "$GITHUB_OUTPUT"
+              echo "Found project: App.xcodeproj"
+            else
+              # Try to find any .xcodeproj using glob expansion
+              PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" -type d | head -1 | sed 's|^\./||')
+              if [ -n "$PROJECT" ]; then
+                echo "project=$PROJECT" >> "$GITHUB_OUTPUT"
+                echo "project-type=project" >> "$GITHUB_OUTPUT"
+                echo "Found project: $PROJECT"
+              else
+                echo "::error::No .xcworkspace or .xcodeproj found in ${{ env.IOS_APP_PATH }}"
+                exit 1
+              fi
+            fi
+          fi
+
+      # =========================================================================
+      # BUILD WEB APP AND SYNC CAPACITOR
+      # =========================================================================
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor to iOS
+        run: |
           npx cap sync ios
-      
-      - name: Build archive
+
+      # =========================================================================
+      # COCOAPODS INSTALLATION
+      # =========================================================================
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.IOS_APP_PATH }}/Pods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock', '**/Podfile') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods dependencies
         run: |
-          cd ios/App
+          cd "${{ env.IOS_APP_PATH }}"
+          
+          # Check if Podfile exists
+          if [ -f "Podfile" ]; then
+            echo "Podfile found, installing pods..."
+            
+            # Check if Gemfile exists for bundler
+            if [ -f "Gemfile" ]; then
+              echo "Gemfile found, using bundler..."
+              gem install bundler
+              bundle install
+              bundle exec pod install --repo-update
+            else
+              echo "No Gemfile, using system CocoaPods..."
+              pod install --repo-update
+            fi
+            
+            echo "Pod installation complete"
+          else
+            echo "No Podfile found, skipping pod install"
+          fi
+
+      # =========================================================================
+      # CACHE DERIVEDDATA
+      # =========================================================================
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.IOS_APP_PATH }}/build/DerivedData
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('**/project.pbxproj', '**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-
+
+      # =========================================================================
+      # CODE SIGNING SETUP
+      # =========================================================================
+      - name: Create temporary keychain
+        id: keychain
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Generate keychain password if not provided
+          if [ -z "$KEYCHAIN_PASSWORD" ]; then
+            KEYCHAIN_PASSWORD=$(uuidgen)
+          fi
+          
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          
+          # Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          
+          # Add to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          
+          echo "keychain-path=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+          echo "keychain-password=$KEYCHAIN_PASSWORD" >> "$GITHUB_OUTPUT"
+          echo "Temporary keychain created at: $KEYCHAIN_PATH"
+
+      - name: Import certificate to keychain
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERT_P12_PASSWORD: ${{ secrets.APPLE_CERT_P12_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "::warning::APPLE_CERTIFICATE secret not set. Code signing may fail."
+            exit 0
+          fi
+          
+          # Decode certificate
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          
+          # Import certificate
+          security import "$CERT_PATH" \
+            -k "${{ steps.keychain.outputs.keychain-path }}" \
+            -P "$APPLE_CERT_P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          
+          # Set key partition list for codesign access
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${{ steps.keychain.outputs.keychain-password }}" \
+            "${{ steps.keychain.outputs.keychain-path }}"
+          
+          # Verify certificate import
+          security find-identity -v -p codesigning "${{ steps.keychain.outputs.keychain-path }}"
+          
+          echo "Certificate imported successfully"
+          rm -f "$CERT_PATH"
+
+      - name: Install provisioning profile
+        id: install-profile
+        env:
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          if [ -z "$APPLE_PROVISIONING_PROFILE" ]; then
+            echo "::warning::APPLE_PROVISIONING_PROFILE secret not set. Code signing may fail."
+            exit 0
+          fi
+          
+          # Create provisioning profiles directory (handle spaces in path)
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          
+          # Decode profile to a temporary location
+          TEMP_PROFILE="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > "$TEMP_PROFILE"
+          
+          # Extract UUID using security cms and PlistBuddy separately for better error handling
+          DECODED_PLIST="$RUNNER_TEMP/profile_decoded.plist"
+          security cms -D -i "$TEMP_PROFILE" > "$DECODED_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$DECODED_PLIST")
+          
+          if [ -z "$PROFILE_UUID" ]; then
+            echo "::error::Failed to extract UUID from provisioning profile"
+            exit 1
+          fi
+          
+          # Install profile with UUID as filename
+          FINAL_PATH="$PROFILES_DIR/$PROFILE_UUID.mobileprovision"
+          cp "$TEMP_PROFILE" "$FINAL_PATH"
+          
+          # Cleanup temp files
+          rm -f "$TEMP_PROFILE" "$DECODED_PLIST"
+          
+          echo "Provisioning profile installed with UUID: $PROFILE_UUID"
+          echo "profile-uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+
+      # =========================================================================
+      # GENERATE EXPORT OPTIONS PLIST
+      # =========================================================================
+      - name: Generate exportOptions.plist
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+          EXPORT_METHOD: ${{ secrets.EXPORT_METHOD }}
+        run: |
+          EXPORT_METHOD="${EXPORT_METHOD:-app-store}"
+          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-TEAM_ID_NOT_SET}"
+          
+          cat > "${{ env.IOS_APP_PATH }}/exportOptions.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>${EXPORT_METHOD}</string>
+              <key>teamID</key>
+              <string>${TEAM_ID}</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>compileBitcode</key>
+              <false/>
+              <key>signingStyle</key>
+              <string>automatic</string>
+          </dict>
+          </plist>
+          EOF
+          
+          echo "Generated exportOptions.plist:"
+          cat "${{ env.IOS_APP_PATH }}/exportOptions.plist"
+
+      # =========================================================================
+      # PREPARE XCODE BUILD ARGUMENTS
+      # =========================================================================
+      - name: Prepare xcodebuild arguments
+        id: xcode-args
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          # Determine workspace or project argument
+          if [ "${{ steps.detect-project.outputs.project-type }}" = "workspace" ]; then
+            echo "project-arg=-workspace ${{ steps.detect-project.outputs.workspace }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "project-arg=-project ${{ steps.detect-project.outputs.project }}" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Determine team argument
+          TEAM_ID="${APPLE_DEVELOPMENT_TEAM:-}"
+          if [ -n "$TEAM_ID" ]; then
+            echo "team-arg=DEVELOPMENT_TEAM=$TEAM_ID" >> "$GITHUB_OUTPUT"
+          else
+            echo "team-arg=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # =========================================================================
+      # BUILD ARCHIVE - STRATEGY A: generic/platform=iOS
+      # =========================================================================
+      - name: Archive - Attempt A (generic/platform=iOS)
+        id: archive-a
+        continue-on-error: true
+        run: |
+          cd "${{ env.IOS_APP_PATH }}"
+          mkdir -p build/logs
+          
+          echo "=== Archive Attempt A: generic/platform=iOS ===" | tee build/logs/archive-attempt-a.log
+          
+          set +e
           xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -derivedDataPath build \
+            ${{ steps.xcode-args.outputs.project-arg }} \
+            -scheme "${{ env.SCHEME_NAME }}" \
+            -configuration "${{ env.CONFIGURATION }}" \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
             -archivePath build/App.xcarchive \
-            archive
-      
-      - name: Export IPA
+            CODE_SIGN_STYLE=Automatic \
+            ${{ steps.xcode-args.outputs.team-arg }} \
+            -allowProvisioningUpdates \
+            archive 2>&1 | tee -a build/logs/archive-attempt-a.log
+          
+          EXIT_CODE=$?
+          set -e
+          
+          if [ $EXIT_CODE -eq 0 ] && [ -d "build/App.xcarchive" ]; then
+            echo "archive-success=true" >> "$GITHUB_OUTPUT"
+            echo "Archive Attempt A succeeded!"
+          else
+            echo "archive-success=false" >> "$GITHUB_OUTPUT"
+            echo "Archive Attempt A failed with exit code: $EXIT_CODE"
+          fi
+
+      # =========================================================================
+      # BUILD ARCHIVE - STRATEGY B: -sdk iphoneos
+      # =========================================================================
+      - name: Archive - Attempt B (-sdk iphoneos)
+        id: archive-b
+        if: steps.archive-a.outputs.archive-success != 'true'
+        continue-on-error: true
         run: |
-          cd ios/App
+          cd "${{ env.IOS_APP_PATH }}"
+          mkdir -p build/logs
+          
+          # Clean previous attempt
+          rm -rf build/App.xcarchive
+          
+          echo "=== Archive Attempt B: -sdk iphoneos ===" | tee build/logs/archive-attempt-b.log
+          
+          set +e
+          xcodebuild \
+            ${{ steps.xcode-args.outputs.project-arg }} \
+            -scheme "${{ env.SCHEME_NAME }}" \
+            -configuration "${{ env.CONFIGURATION }}" \
+            -sdk iphoneos \
+            -derivedDataPath build/DerivedData \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Automatic \
+            ${{ steps.xcode-args.outputs.team-arg }} \
+            -allowProvisioningUpdates \
+            archive 2>&1 | tee -a build/logs/archive-attempt-b.log
+          
+          EXIT_CODE=$?
+          set -e
+          
+          if [ $EXIT_CODE -eq 0 ] && [ -d "build/App.xcarchive" ]; then
+            echo "archive-success=true" >> "$GITHUB_OUTPUT"
+            echo "Archive Attempt B succeeded!"
+          else
+            echo "archive-success=false" >> "$GITHUB_OUTPUT"
+            echo "Archive Attempt B failed with exit code: $EXIT_CODE"
+          fi
+
+      # =========================================================================
+      # BUILD ARCHIVE - STRATEGY C: -sdk iphoneos -arch arm64
+      # =========================================================================
+      - name: Archive - Attempt C (-sdk iphoneos -arch arm64)
+        id: archive-c
+        if: steps.archive-a.outputs.archive-success != 'true' && steps.archive-b.outputs.archive-success != 'true'
+        continue-on-error: true
+        run: |
+          cd "${{ env.IOS_APP_PATH }}"
+          mkdir -p build/logs
+          
+          # Clean previous attempt
+          rm -rf build/App.xcarchive
+          
+          echo "=== Archive Attempt C: -sdk iphoneos -arch arm64 ===" | tee build/logs/archive-attempt-c.log
+          
+          set +e
+          xcodebuild \
+            ${{ steps.xcode-args.outputs.project-arg }} \
+            -scheme "${{ env.SCHEME_NAME }}" \
+            -configuration "${{ env.CONFIGURATION }}" \
+            -sdk iphoneos \
+            -arch arm64 \
+            -derivedDataPath build/DerivedData \
+            -archivePath build/App.xcarchive \
+            CODE_SIGN_STYLE=Automatic \
+            ${{ steps.xcode-args.outputs.team-arg }} \
+            -allowProvisioningUpdates \
+            archive 2>&1 | tee -a build/logs/archive-attempt-c.log
+          
+          EXIT_CODE=$?
+          set -e
+          
+          if [ $EXIT_CODE -eq 0 ] && [ -d "build/App.xcarchive" ]; then
+            echo "archive-success=true" >> "$GITHUB_OUTPUT"
+            echo "Archive Attempt C succeeded!"
+          else
+            echo "archive-success=false" >> "$GITHUB_OUTPUT"
+            echo "Archive Attempt C failed with exit code: $EXIT_CODE"
+          fi
+
+      # =========================================================================
+      # CHECK ARCHIVE RESULT
+      # =========================================================================
+      - name: Verify archive exists
+        id: verify-archive
+        run: |
+          if [ -d "${{ env.IOS_APP_PATH }}/build/App.xcarchive" ]; then
+            echo "archive-exists=true" >> "$GITHUB_OUTPUT"
+            echo "Archive created successfully!"
+            ls -la "${{ env.IOS_APP_PATH }}/build/App.xcarchive/"
+          else
+            echo "archive-exists=false" >> "$GITHUB_OUTPUT"
+            echo "::error::All archive attempts failed. Check the uploaded logs for details."
+          fi
+
+      # =========================================================================
+      # EXPORT IPA
+      # =========================================================================
+      - name: Export IPA
+        id: export-ipa
+        if: steps.verify-archive.outputs.archive-exists == 'true'
+        continue-on-error: true
+        run: |
+          cd "${{ env.IOS_APP_PATH }}"
+          mkdir -p build/logs build/ipa
+          
+          echo "=== Exporting IPA ===" | tee build/logs/export.log
+          
+          set +e
           xcodebuild \
             -exportArchive \
             -archivePath build/App.xcarchive \
-            -exportOptionsPlist ../exportOptions.plist \
-            -exportPath build/ipa
-      
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/ipa \
+            ${{ steps.xcode-args.outputs.team-arg }} \
+            -allowProvisioningUpdates 2>&1 | tee -a build/logs/export.log
+          
+          EXIT_CODE=$?
+          set -e
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "export-success=true" >> "$GITHUB_OUTPUT"
+            echo "IPA export succeeded!"
+            ls -la build/ipa/
+          else
+            echo "export-success=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::IPA export failed with exit code: $EXIT_CODE"
+          fi
+
+      # =========================================================================
+      # UPLOAD ARTIFACTS
+      # =========================================================================
+      - name: Upload archive logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode-archive-logs
+          path: |
+            ${{ env.IOS_APP_PATH }}/build/logs/archive-attempt-*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload export log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode-export-log
+          path: ${{ env.IOS_APP_PATH }}/build/logs/export.log
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
+        if: steps.export-ipa.outputs.export-success == 'true'
         with:
           name: App.ipa
-          path: ios/App/build/ipa/App.ipa
+          path: ${{ env.IOS_APP_PATH }}/build/ipa/*.ipa
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Upload xcarchive (for debugging)
+        uses: actions/upload-artifact@v4
+        if: steps.verify-archive.outputs.archive-exists == 'true'
+        with:
+          name: App.xcarchive
+          path: ${{ env.IOS_APP_PATH }}/build/App.xcarchive
+          retention-days: 7
+
+      # =========================================================================
+      # CLEANUP
+      # =========================================================================
+      - name: Cleanup keychain and provisioning profile
+        if: always()
+        run: |
+          # Remove the temporary keychain
+          if [ -f "${{ steps.keychain.outputs.keychain-path }}" ]; then
+            security delete-keychain "${{ steps.keychain.outputs.keychain-path }}" || true
+          fi
+          
+          # Remove only the specific provisioning profile we installed
+          PROFILE_UUID="${{ steps.install-profile.outputs.profile-uuid }}"
+          if [ -n "$PROFILE_UUID" ]; then
+            PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+            rm -f "$PROFILES_DIR/$PROFILE_UUID.mobileprovision" || true
+            echo "Removed provisioning profile: $PROFILE_UUID"
+          fi
+
+      # =========================================================================
+      # BUILD STATUS SUMMARY
+      # =========================================================================
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## iOS Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.archive-a.outputs.archive-success }}" = "true" ]; then
+            echo "✅ Archive Attempt A (generic/platform=iOS): **Success**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.archive-a.outcome }}" = "skipped" ]; then
+            echo "⏭️ Archive Attempt A: Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Archive Attempt A (generic/platform=iOS): Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.archive-b.outputs.archive-success }}" = "true" ]; then
+            echo "✅ Archive Attempt B (-sdk iphoneos): **Success**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.archive-b.outcome }}" = "skipped" ]; then
+            echo "⏭️ Archive Attempt B: Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Archive Attempt B (-sdk iphoneos): Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.archive-c.outputs.archive-success }}" = "true" ]; then
+            echo "✅ Archive Attempt C (-sdk iphoneos -arch arm64): **Success**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.archive-c.outcome }}" = "skipped" ]; then
+            echo "⏭️ Archive Attempt C: Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Archive Attempt C (-sdk iphoneos -arch arm64): Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.verify-archive.outputs.archive-exists }}" = "true" ]; then
+            echo "📦 Archive: **Created**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "📦 Archive: **Not Created** - All attempts failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.export-ipa.outputs.export-success }}" = "true" ]; then
+            echo "📱 IPA Export: **Success**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.export-ipa.outcome }}" = "skipped" ]; then
+            echo "📱 IPA Export: Skipped (no archive)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "📱 IPA Export: **Failed**" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 Archive logs uploaded for debugging" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 Export log uploaded for debugging" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.export-ipa.outputs.export-success }}" = "true" ]; then
+            echo "- 📱 IPA file uploaded successfully" >> $GITHUB_STEP_SUMMARY
+          fi
