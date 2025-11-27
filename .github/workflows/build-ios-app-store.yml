@@ -1,70 +1,335 @@
-name: iOS build ready for App Store
+name: Build iOS App Store
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - 'ios/**'
-      - 'client/**'
-      - 'package.json'
-      - 'capacitor.config.ts'
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  EXPORT_METHOD: app-store
+  SCHEME: App
+  IOS_DIR: ios/App
+  BUILD_DIR: build
+  DERIVED_DATA: ${{ github.workspace }}/DerivedData
 
 jobs:
-  build-ios:
-    name: Build iOS IPA for App Store
+  build:
     runs-on: macos-latest
-    
+    timeout-minutes: 120
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build web app
-        run: npm run build
-      
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+          fetch-depth: 0
+
+      - name: Show top-level and ios files (debug)
+        run: |
+          ls -la
+          echo "== ios tree =="
+          ls -la ${{ env.IOS_DIR }} || true
+
+      - name: Detect workspace/project
+        id: detect
+        run: |
+          cd "${{ env.IOS_DIR }}" || (echo "No ios/App folder found" && exit 0)
+          if ls *.xcworkspace 1> /dev/null 2>&1; then
+            echo "workspace=$(ls *.xcworkspace | head -n1)" >> $GITHUB_OUTPUT
+          fi
+          if ls *.xcodeproj 1> /dev/null 2>&1; then
+            echo "project=$(ls *.xcodeproj | head -n1)" >> $GITHUB_OUTPUT
+          fi
+          cd ..
+
+      - name: List Xcode SDKs and available destinations (diagnostic)
+        run: |
+          echo "===== xcodebuild -showsdks ====="
+          xcodebuild -showsdks || true
+          echo "===== xcodebuild -list (workspace/project) ====="
+          cd "${{ env.IOS_DIR }}" || exit 0
+          if [ -n "${{ steps.detect.outputs.workspace }}" ]; then
+            xcodebuild -workspace "${{ steps.detect.outputs.workspace }}" -list || true
+            echo "===== xcodebuild -showdestinations (workspace) ====="
+            xcodebuild -workspace "${{ steps.detect.outputs.workspace }}" -scheme "${{ env.SCHEME }}" -showdestinations || true
+          elif [ -n "${{ steps.detect.outputs.project }}" ]; then
+            xcodebuild -project "${{ steps.detect.outputs.project }}" -list || true
+            echo "===== xcodebuild -showdestinations (project) ====="
+            xcodebuild -project "${{ steps.detect.outputs.project }}" -scheme "${{ env.SCHEME }}" -showdestinations || true
+          else
+            echo "No workspace or project found in ios directory"
+          fi
+          cd ..
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
         with:
-          xcode-version: latest-stable
-      
-      - name: Sync Capacitor
+          path: |
+            ${{ env.IOS_DIR }}/Pods
+            ~/.cocoapods
+          key: pods-${{ runner.os }}-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}
+          key: derived-data-${{ runner.os }}-${{ hashFiles('**/project.pbxproj') }}
+          restore-keys: |
+            derived-data-${{ runner.os }}-
+
+      - name: Install CocoaPods (if needed)
         run: |
-          npm install -g @capacitor/cli
-          npx cap sync ios
-      
-      - name: Build archive
+          if [ -f Gemfile ]; then
+            gem install bundler --no-document
+            bundle config path vendor/bundle
+            bundle install --jobs 4 --retry 3
+          fi
+          if [ -f "${{ env.IOS_DIR }}/Podfile" ]; then
+            gem install cocoapods --no-document || true
+            cd "${{ env.IOS_DIR }}" && pod install --repo-update
+          else
+            echo "No Podfile found; skipping pod install"
+          fi
+
+      - name: Prepare temporary keychain
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
         run: |
-          cd ios/App
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
+          if [ -z "$APPLE_CERTIFICATE" ] && [ -z "$APPLE_PROVISIONING_PROFILE" ]; then
+            echo "No signing secrets provided, skipping keychain setup"
+            exit 0
+          fi
+          KEYCHAIN_PW="${KEYCHAIN_PASSWORD:-build}"
+          mkdir -p ~/Library/Keychains
+          security create-keychain -p "$KEYCHAIN_PW" build.keychain
+          security default-keychain -s ~/Library/Keychains/build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PW" ~/Library/Keychains/build.keychain
+          security set-keychain-settings -t 3600 -u ~/Library/Keychains/build.keychain
+
+      - name: Import certificate (base64 .p12) into keychain
+        env:
+          APPLE_CERT_BASE64: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERT_P12_PASSWORD: ${{ secrets.APPLE_CERT_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_CERT_BASE64" ]; then
+            echo "No certificate provided, skipping certificate import"
+            exit 0
+          fi
+          KEYCHAIN_PW="${KEYCHAIN_PASSWORD:-build}"
+          echo "$APPLE_CERT_BASE64" | base64 --decode > /tmp/cert.p12
+          CERT_PASS="${APPLE_CERT_P12_PASSWORD}"
+          if [ -z "$CERT_PASS" ]; then
+            security import /tmp/cert.p12 -k ~/Library/Keychains/build.keychain -A || true
+          else
+            security import /tmp/cert.p12 -k ~/Library/Keychains/build.keychain -P "$CERT_PASS" -A
+          fi
+          # Make the key available for codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PW" ~/Library/Keychains/build.keychain 2>/dev/null || true
+          security find-identity -v -p codesigning ~/Library/Keychains/build.keychain || true
+          rm -f /tmp/cert.p12
+
+      - name: Install provisioning profile
+        env:
+          PROV_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          if [ -z "$PROV_BASE64" ]; then
+            echo "No provisioning profile provided, skipping profile installation"
+            exit 0
+          fi
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROV_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles || true
+
+      - name: Generate exportOptions.plist
+        run: |
+          EXPORT="${{ secrets.EXPORT_METHOD }}"
+          if [ -z "$EXPORT" ]; then
+            EXPORT="${{ env.EXPORT_METHOD }}"
+          fi
+          TEAM="${{ secrets.APPLE_DEVELOPMENT_TEAM }}"
+          if [ -z "$TEAM" ]; then
+            TEAM="XXXXXXXXXX"
+          fi
+          cat > exportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>${EXPORT}</string>
+              <key>teamID</key>
+              <string>${TEAM}</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>signingStyle</key>
+              <string>automatic</string>
+          </dict>
+          </plist>
+          EOF
+          echo "=== exportOptions.plist ==="
+          cat exportOptions.plist
+
+      - name: Prepare build arguments
+        id: build_args
+        run: |
+          # Determine workspace or project argument
+          if [ -n "${{ steps.detect.outputs.workspace }}" ]; then
+            echo "xcode_arg=-workspace ${{ steps.detect.outputs.workspace }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ steps.detect.outputs.project }}" ]; then
+            echo "xcode_arg=-project ${{ steps.detect.outputs.project }}" >> $GITHUB_OUTPUT
+          else
+            echo "xcode_arg=" >> $GITHUB_OUTPUT
+          fi
+          # Determine team argument
+          TEAM="${{ secrets.APPLE_DEVELOPMENT_TEAM }}"
+          if [ -n "$TEAM" ]; then
+            echo "team_arg=DEVELOPMENT_TEAM=$TEAM" >> $GITHUB_OUTPUT
+          else
+            echo "team_arg=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Archive Strategy A - generic/platform=iOS
+        id: archive_a
+        continue-on-error: true
+        run: |
+          cd "${{ env.IOS_DIR }}"
+          set -o pipefail
+          xcodebuild archive \
+            ${{ steps.build_args.outputs.xcode_arg }} \
+            -scheme "${{ env.SCHEME }}" \
             -configuration Release \
-            -derivedDataPath build \
-            -archivePath build/App.xcarchive \
-            archive
-      
-      - name: Export IPA
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "${{ env.DERIVED_DATA }}" \
+            -archivePath "${{ env.BUILD_DIR }}/App.xcarchive" \
+            CODE_SIGN_STYLE=Automatic \
+            ${{ steps.build_args.outputs.team_arg }} \
+            -allowProvisioningUpdates \
+            2>&1 | tee "${{ github.workspace }}/xcode-archive-attempt-A.log"
+          echo "strategy=A" >> $GITHUB_OUTPUT
+
+      - name: Archive Strategy B - sdk iphoneos
+        if: steps.archive_a.outcome == 'failure'
+        id: archive_b
+        continue-on-error: true
         run: |
-          cd ios/App
-          xcodebuild \
-            -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportOptionsPlist ../exportOptions.plist \
-            -exportPath build/ipa
-      
+          cd "${{ env.IOS_DIR }}"
+          set -o pipefail
+          xcodebuild archive \
+            ${{ steps.build_args.outputs.xcode_arg }} \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "${{ env.DERIVED_DATA }}" \
+            -archivePath "${{ env.BUILD_DIR }}/App.xcarchive" \
+            CODE_SIGN_STYLE=Automatic \
+            ${{ steps.build_args.outputs.team_arg }} \
+            -allowProvisioningUpdates \
+            2>&1 | tee "${{ github.workspace }}/xcode-archive-attempt-B.log"
+          echo "strategy=B" >> $GITHUB_OUTPUT
+
+      - name: Archive Strategy C - sdk iphoneos arch arm64
+        if: steps.archive_a.outcome == 'failure' && steps.archive_b.outcome == 'failure'
+        id: archive_c
+        continue-on-error: true
+        run: |
+          cd "${{ env.IOS_DIR }}"
+          set -o pipefail
+          xcodebuild archive \
+            ${{ steps.build_args.outputs.xcode_arg }} \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            -derivedDataPath "${{ env.DERIVED_DATA }}" \
+            -archivePath "${{ env.BUILD_DIR }}/App.xcarchive" \
+            CODE_SIGN_STYLE=Automatic \
+            ${{ steps.build_args.outputs.team_arg }} \
+            -allowProvisioningUpdates \
+            2>&1 | tee "${{ github.workspace }}/xcode-archive-attempt-C.log"
+          echo "strategy=C" >> $GITHUB_OUTPUT
+
+      - name: Determine archive success
+        id: archive_result
+        run: |
+          if [ "${{ steps.archive_a.outcome }}" == "success" ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "strategy=A" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.archive_b.outcome }}" == "success" ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "strategy=B" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.archive_c.outcome }}" == "success" ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "strategy=C" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "::error::All archive strategies failed. Check uploaded logs for details."
+          fi
+
+      - name: Export IPA
+        if: steps.archive_result.outputs.success == 'true'
+        run: |
+          cd "${{ env.IOS_DIR }}"
+          xcodebuild -exportArchive \
+            -archivePath "${{ env.BUILD_DIR }}/App.xcarchive" \
+            -exportOptionsPlist "${{ github.workspace }}/exportOptions.plist" \
+            -exportPath "${{ env.BUILD_DIR }}/ipa" \
+            -allowProvisioningUpdates \
+            2>&1 | tee "${{ github.workspace }}/xcode-export.log"
+
+      - name: Upload archive logs (Strategy A)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-archive-attempt-A.log
+          path: ${{ github.workspace }}/xcode-archive-attempt-A.log
+          if-no-files-found: ignore
+
+      - name: Upload archive logs (Strategy B)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-archive-attempt-B.log
+          path: ${{ github.workspace }}/xcode-archive-attempt-B.log
+          if-no-files-found: ignore
+
+      - name: Upload archive logs (Strategy C)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-archive-attempt-C.log
+          path: ${{ github.workspace }}/xcode-archive-attempt-C.log
+          if-no-files-found: ignore
+
+      - name: Upload export log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-export.log
+          path: ${{ github.workspace }}/xcode-export.log
+          if-no-files-found: ignore
+
       - name: Upload IPA
+        if: steps.archive_result.outputs.success == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: App.ipa
-          path: ios/App/build/ipa/App.ipa
+          path: ${{ env.IOS_DIR }}/${{ env.BUILD_DIR }}/ipa/*.ipa
+          if-no-files-found: warn
           retention-days: 30
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          security delete-keychain ~/Library/Keychains/build.keychain 2>/dev/null || true
