@@ -118,6 +118,7 @@ jobs:
             -archivePath build/App.xcarchive \
             DEVELOPMENT_TEAM=UCXFC4BDX7 \
             CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
             archive
       
       - name: Export IPA
