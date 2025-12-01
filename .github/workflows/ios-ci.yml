@@ -18,7 +18,8 @@ jobs:
 
     env:
       DEVELOPMENT_TEAM: UCXFC4BDX7
-      BUNDLE_ID: com.omniversesyndicate.getchaospay
+      BUNDLE_ID: com.getchaospay.app
+
 
     steps:
       - name: Checkout code
