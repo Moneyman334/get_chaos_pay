@@ -110,24 +110,29 @@ EOF
             -allowProvisioningUpdates \
             archive
 
-      - name: Export IPA
+            - name: Export IPA
         run: |
           cd ios/App
-          xcodebuild \
-            -exportArchive \
-            -archivePath build/App.xcarchive \
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>compileBitcode</key>
+            <false/>
+            <key>destination</key>
+            <string>export</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${DEVELOPMENT_TEAM}</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild -exportArchive \
+            -archivePath "$PWD/build/App.xcarchive" \
             -exportOptionsPlist exportOptions.plist \
-            -exportPath build/ipa \
-            -allowProvisioningUpdates
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: App.ipa
-          path: ios/App/build/ipa/*.ipa
-          retention-days: 30
-
-      - name: Cleanup keychain
-        if: always()
-        run: |
-          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
+            -exportPath "$PWD/build"
