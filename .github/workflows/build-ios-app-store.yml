@@ -107,28 +107,32 @@ jobs:
           </plist>
           EOF
       
-      - name: Build archive
-        run: |
-          cd ios/App
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -derivedDataPath build \
-            -archivePath build/App.xcarchive \
-            DEVELOPMENT_TEAM=UCXFC4BDX7 \
-            CODE_SIGN_STYLE=Automatic \
-            archive
+            - name: Build archive
+  run: |
+    cd ios/App
+    xcodebuild \
+      -workspace App.xcworkspace \
+      -scheme App \
+      -configuration Release \
+      -derivedDataPath build \
+      -archivePath build/App.xcarchive \
+      DEVELOPMENT_TEAM=UCXFC4BDX7 \
+      CODE_SIGN_STYLE=Automatic \
+      -allowProvisioningUpdates \
+      archive
+
+
       
-      - name: Export IPA
-        run: |
-          cd ios/App
-          xcodebuild \
-            -exportArchive \
-            -archivePath build/App.xcarchive \
-            -exportOptionsPlist exportOptions.plist \
-            -exportPath build/ipa \
-            DEVELOPMENT_TEAM=UCXFC4BDX7
+          - name: Export IPA
+  run: |
+    cd ios/App
+    xcodebuild \
+      -exportArchive \
+      -archivePath build/App.xcarchive \
+      -exportOptionsPlist exportOptions.plist \
+      -exportPath build/ipa \
+      -allowProvisioningUpdates
+
       
       - name: Upload IPA
         uses: actions/upload-artifact@v4
