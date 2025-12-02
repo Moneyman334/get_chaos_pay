@@ -17,7 +17,7 @@ jobs:
     runs-on: macos-latest
 
     env:
-      DEVELOPMENT_TEAM: UCXFC48DX7
+      DEVELOPMENT_TEAM:UCXFC48DX7
       BUNDLE_ID: com.getchaospay.app
 
     steps:
